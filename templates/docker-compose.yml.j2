@@ -108,6 +108,30 @@ services:
       - "traefik.http.routers.orangescrum-v4.tls=true"
       - "traefik.http.services.orangescrum-v4.loadbalancer.server.port=80"
 
+  # OrangeScrum Cloud - FrankenPHP Binary (Production Cloud)
+  orangescrum-cloud:
+    build:
+      context: ./cloud-builder/orangescrum-cloud
+      dockerfile: Dockerfile
+    container_name: orangescrum-cloud
+    restart: unless-stopped
+    env_file:
+      - ./os-v4/.env
+    networks:
+      traefik-network:
+        ipv4_address: 172.25.0.22
+      durango-backend:
+        ipv4_address: 172.26.0.22
+    depends_on:
+      - postgres16
+      - redis-durango
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.orangescrum-cloud.rule=Host(`cloud.{{ domain }}`)"
+      - "traefik.http.routers.orangescrum-cloud.entrypoints=websecure"
+      - "traefik.http.routers.orangescrum-cloud.tls=true"
+      - "traefik.http.services.orangescrum-cloud.loadbalancer.server.port=80"
+
   # Orangescrum - PHP 7.2 + MySQL
   orangescrum:
     build:
@@ -138,7 +162,7 @@ services:
       - memcached-orangescrum
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.orangescrum.rule=HostRegexp(`{subdomain:[a-z0-9-]+}.{{ domain }}`) && !Host(`v4.{{ domain }}`) && !Host(`selfhosted.{{ domain }}`) && !Host(`traefik.{{ domain }}`) && !Host(`storage.{{ domain }}`) && !Host(`console.{{ domain }}`) && !Host(`mail.{{ domain }}`)"
+      - "traefik.http.routers.orangescrum.rule=HostRegexp(`{subdomain:[a-z0-9-]+}.{{ domain }}`) && !Host(`v4.{{ domain }}`) && !Host(`cloud.{{ domain }}`) && !Host(`selfhosted.{{ domain }}`) && !Host(`traefik.{{ domain }}`) && !Host(`storage.{{ domain }}`) && !Host(`console.{{ domain }}`) && !Host(`mail.{{ domain }}`)"
       - "traefik.http.routers.orangescrum.entrypoints=websecure"
       - "traefik.http.routers.orangescrum.tls=true"
       - "traefik.http.services.orangescrum.loadbalancer.server.port=80"

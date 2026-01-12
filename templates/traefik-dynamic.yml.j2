@@ -33,9 +33,18 @@ http:
       tls: {}
       priority: 100  # Higher priority than wildcards
     
+    # OrangeScrum Cloud - cloud subdomain (FrankenPHP)
+    orangescrum-cloud:
+      rule: "Host(`cloud.{{ domain }}`)"
+      service: orangescrum-cloud
+      entryPoints:
+        - websecure
+      tls: {}
+      priority: 100  # Higher priority than wildcards
+    
     # Orangescrum V2 - Wildcard for all other subdomains
     orangescrum:
-      rule: "HostRegexp(`{subdomain:[a-z0-9-]+}.{{ domain }}`) && !Host(`v4.{{ domain }}`, `selfhosted.{{ domain }}`, `traefik.{{ domain }}`, `storage.{{ domain }}`, `console.{{ domain }}`, `mail.{{ domain }}`)"
+      rule: "HostRegexp(`{subdomain:[a-z0-9-]+}.{{ domain }}`) && !Host(`v4.{{ domain }}`, `cloud.{{ domain }}`, `selfhosted.{{ domain }}`, `traefik.{{ domain }}`, `storage.{{ domain }}`, `console.{{ domain }}`, `mail.{{ domain }}`)"
       service: orangescrum
       entryPoints:
         - websecure
@@ -77,6 +86,11 @@ http:
       loadBalancer:
         servers:
           - url: "http://orangescrum-v4:80"
+    
+    orangescrum-cloud:
+      loadBalancer:
+        servers:
+          - url: "http://orangescrum-cloud:80"
     
     orangescrum:
       loadBalancer:
