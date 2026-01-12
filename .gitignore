@@ -25,10 +25,17 @@ certs/*.crt
 certs/*.key
 certs/*.pem
 
-# Generated configurations
+# Generated configurations (auto-generated from templates/)
 *.new
+docker-compose.yml
 docker-compose.override.yml
 !docker-compose.override.yml.example
+config/durango-apache.conf
+config/orangescrum-apache.conf
+traefik/dynamic.yml
+generate-certs.sh
+php-trust-certs.sh
+certs/openssl.cnf
 
 # Backup directories
 backups/
