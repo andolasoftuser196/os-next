@@ -1,6 +1,6 @@
 # Auto-generated Docker Compose configuration
 # Domain: ossiba.online
-# Generated: 2026-01-12 12:10:01
+# Generated: 2026-01-12 13:25:51
 
 services:
   # Traefik reverse proxy with SSL
@@ -9,9 +9,12 @@ services:
     container_name: traefik
     restart: unless-stopped
     command:
-      - "--api.insecure=true"
+      - "--api.dashboard=true"
+      - "--api.insecure=false"
       - "--providers.file.directory=/etc/traefik/dynamic"
       - "--providers.file.watch=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
@@ -19,9 +22,17 @@ services:
     volumes:
       - ./traefik:/etc/traefik/dynamic:ro
       - ./certs:/certs:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       traefik-network:
         ipv4_address: 172.25.0.10
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.ossiba.online`)"
+      - "traefik.http.routers.traefik-dashboard.entrypoints=websecure"
+      - "traefik.http.routers.traefik-dashboard.tls=true"
+      - "traefik.http.routers.traefik-dashboard.service=api@internal"
+      - "traefik.http.routers.traefik-dashboard.priority=100"
 
   # Durango - PHP 8.3 + PostgreSQL
   durango-pg:
@@ -40,7 +51,7 @@ services:
       - ./config/php-custom-limits.ini:/etc/php/8.3/apache2/conf.d/99-custom-limits.ini
       - ./certs/ossiba.online.crt:/usr/local/share/ca-certificates/ossiba.online.crt:ro
     env_file:
-      - ./os-v4/.env
+      - ./os-pg/.env
     environment:
       - MEMCACHED_HOST=memcached-durango:11211
       - SSL_CERT_FILE=/usr/local/share/ca-certificates/ossiba.online.crt
@@ -55,10 +66,47 @@ services:
       - memcached-durango
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.durango.rule=Host(`v4.ossiba.online`)"
+      - "traefik.http.routers.durango.rule=Host(`selfhosted.ossiba.online`)"
       - "traefik.http.routers.durango.entrypoints=websecure"
       - "traefik.http.routers.durango.tls=true"
       - "traefik.http.services.durango.loadbalancer.server.port=80"
+
+  # OrangeScrum V4 - PHP 8.3 + PostgreSQL
+  orangescrum-v4:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: php83
+      args:
+        BUILDER_UID: ${BUILDER_UID:-1000}
+    container_name: orangescrum-v4
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./apps/orangescrum-v4:/var/www/html
+      - ./config/durango-apache.conf:/etc/apache2/sites-available/000-default.conf
+      - ./config/php-custom-limits.ini:/etc/php/8.3/apache2/conf.d/99-custom-limits.ini
+      - ./certs/ossiba.online.crt:/usr/local/share/ca-certificates/ossiba.online.crt:ro
+    env_file:
+      - ./os-v4/.env
+    environment:
+      - MEMCACHED_HOST=memcached-durango:11211
+      - SSL_CERT_FILE=/usr/local/share/ca-certificates/ossiba.online.crt
+      - CURL_CA_BUNDLE=/usr/local/share/ca-certificates/ossiba.online.crt
+    networks:
+      traefik-network:
+        ipv4_address: 172.25.0.21
+      durango-backend:
+        ipv4_address: 172.26.0.21
+    depends_on:
+      - postgres16
+      - memcached-durango
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.orangescrum-v4.rule=Host(`v4.ossiba.online`)"
+      - "traefik.http.routers.orangescrum-v4.entrypoints=websecure"
+      - "traefik.http.routers.orangescrum-v4.tls=true"
+      - "traefik.http.services.orangescrum-v4.loadbalancer.server.port=80"
 
   # Orangescrum - PHP 7.2 + MySQL
   orangescrum:
@@ -90,7 +138,7 @@ services:
       - memcached-orangescrum
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.orangescrum.rule=HostRegexp(`{subdomain:[a-z0-9-]+}.ossiba.online`) && !Host(`v4.ossiba.online`)"
+      - "traefik.http.routers.orangescrum.rule=HostRegexp(`{subdomain:[a-z0-9-]+}.ossiba.online`) && !Host(`v4.ossiba.online`) && !Host(`selfhosted.ossiba.online`) && !Host(`traefik.ossiba.online`) && !Host(`storage.ossiba.online`) && !Host(`console.ossiba.online`) && !Host(`mail.ossiba.online`)"
       - "traefik.http.routers.orangescrum.entrypoints=websecure"
       - "traefik.http.routers.orangescrum.tls=true"
       - "traefik.http.services.orangescrum.loadbalancer.server.port=80"

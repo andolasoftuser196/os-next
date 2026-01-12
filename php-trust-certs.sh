@@ -1,7 +1,7 @@
 #!/bin/bash
 # Trust the custom SSL certificate in the container and setup DNS resolution
 # Domain: ossiba.online
-# Generated: 2026-01-12 12:10:01
+# Generated: 2026-01-12 13:25:51
 
 set -e
 

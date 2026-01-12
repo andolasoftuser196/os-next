@@ -1,6 +1,6 @@
 # Auto-generated Traefik dynamic configuration
 # Domain: ossiba.online
-# Generated: 2026-01-12 12:10:01
+# Generated: 2026-01-12 13:25:51
 
 http:
   routers:
@@ -15,7 +15,7 @@ http:
     
     # Orangescrum V2 - Wildcard for all other subdomains
     orangescrum:
-      rule: "HostRegexp(`{subdomain:[a-z0-9-]+}.ossiba.online`) && !Host(`v4.ossiba.online`, `mail.ossiba.online`)"
+      rule: "HostRegexp(`{subdomain:[a-z0-9-]+}.ossiba.online`) && !Host(`v4.ossiba.online`, `selfhosted.ossiba.online`, `traefik.ossiba.online`, `storage.ossiba.online`, `console.ossiba.online`, `mail.ossiba.online`)"
       service: orangescrum
       entryPoints:
         - websecure
@@ -26,6 +26,15 @@ http:
     mailhog:
       rule: "Host(`mail.ossiba.online`)"
       service: mailhog
+      entryPoints:
+        - websecure
+      tls: {}
+      priority: 100
+    
+    # Traefik Dashboard
+    traefik-dashboard:
+      rule: "Host(`traefik.ossiba.online`)"
+      service: api@internal
       entryPoints:
         - websecure
       tls: {}

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Generate self-signed SSL certificates for local development
 # Domain: ossiba.online
-# Generated: 2026-01-12 12:10:01
+# Generated: 2026-01-12 13:25:51
 
 CERT_DIR="./certs"
 DOMAIN="ossiba.online"

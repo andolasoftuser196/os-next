@@ -1,0 +1,13 @@
+
+Next steps:
+  1. Generate SSL certificates: ./generate-certs.sh
+  2. Start services: docker compose up -d
+  3. Run database setup: ./setup-databases.sh
+  4. Install Chrome launchers:
+     Linux:   cp launchers/linux-{{ domain }}-*.desktop ~/.local/share/applications/
+     Windows: Use launchers/windows-{{ domain }}-*.bat
+
+Access points:
+{% for point in access_points %}
+  - {{ point.name }}: {{ point.url }}
+{% endfor %}

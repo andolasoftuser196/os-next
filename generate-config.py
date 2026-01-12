@@ -338,18 +338,28 @@ def generate_configurations(domain, dry_run=False):
 
 def print_next_steps(domain):
     """Print next steps after configuration"""
-    print("\nNext steps:")
-    print("  1. Generate SSL certificates: ./generate-certs.sh")
-    print("  2. Start services: docker compose up -d")
-    print("  3. Run database setup: ./setup-databases.sh")
-    print(f"  4. Install Chrome launchers:")
-    print(f"     Linux:   cp launchers/linux-{domain}-*.desktop ~/.local/share/applications/")
-    print(f"     Windows: Use launchers/windows-{domain}-*.bat")
-    print("\nAccess points:")
-    print(f"  - V2 (Orangescrum): https://app.{domain}")
-    print(f"  - V4 (Durango): https://v4.{domain}")
-    print(f"  - MailHog: https://mail.{domain}")
-    print("  - Traefik Dashboard: http://localhost:8080")
+    # Access point configuration
+    access_points = [
+        {"name": "V2 (Orangescrum)", "url": f"https://app.{domain}"},
+        {"name": "V4 (OrangeScrum)", "url": f"https://v4.{domain}"},
+        {"name": "V4 (Durango PG)", "url": f"https://selfhosted.{domain}"},
+        {"name": "MailHog", "url": f"https://mail.{domain}"},
+        {"name": "Storage (MinIO)", "url": f"https://storage.{domain}"},
+        {"name": "Storage Console", "url": f"https://console.{domain}"},
+        {"name": "Traefik Dashboard", "url": f"https://traefik.{domain}"}
+    ]
+    
+    # Load and render template
+    templates_dir = Path('templates')
+    env = Environment(
+        loader=FileSystemLoader(str(templates_dir)),
+        trim_blocks=True,
+        lstrip_blocks=True
+    )
+    
+    template = env.get_template('next-steps.txt.j2')
+    output = template.render(domain=domain, access_points=access_points)
+    print(output)
 
 
 def main():

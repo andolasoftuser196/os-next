@@ -12,6 +12,7 @@ apps/*
 .env
 os-v2/.env
 os-v4/.env
+os-pg/.env
 *.env.local
 
 # Docker volumes and data
