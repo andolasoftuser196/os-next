@@ -132,6 +132,25 @@ services:
       - "traefik.http.routers.orangescrum-cloud.tls=true"
       - "traefik.http.services.orangescrum-cloud.loadbalancer.server.port=80"
 
+  # OrangeScrum Cloud Queue Worker
+  orangescrum-cloud-queue:
+    build:
+      context: ./cloud-builder/orangescrum-cloud
+      dockerfile: Dockerfile
+    container_name: orangescrum-cloud-queue
+    restart: unless-stopped
+    env_file:
+      - ./os-v4/.env
+    environment:
+      - QUEUE_WORKER=true
+    command: ["/orangescrum-app/osv4-prod", "php-cli", "bin/cake.php", "queue", "worker", "--verbose"]
+    networks:
+      durango-backend:
+        ipv4_address: 172.26.0.23
+    depends_on:
+      - postgres16
+      - redis-durango
+
   # Orangescrum - PHP 7.2 + MySQL
   orangescrum:
     build:
