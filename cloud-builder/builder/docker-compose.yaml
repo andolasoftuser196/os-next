@@ -1,0 +1,30 @@
+name: orangescrum-cloud-builder
+services:
+  # ==========================================
+  # Service 1: Base FrankenPHP Builder
+  # Build this ONCE or when dependencies change
+  # ==========================================
+  frankenphp-base-builder:
+    container_name: orangescrum-cloud-builder
+    build:
+      context: .
+      dockerfile: base-build.Dockerfile
+    image: orangescrum-cloud-base:latest
+    profiles:
+      - base-build
+    command: echo "Base build complete"
+
+  # ==========================================
+  # Service 2: App Embedding Builder
+  # Build this FREQUENTLY when app code changes
+  # ==========================================
+  orangescrum-app-builder:
+    container_name: orangescrum-cloud-builder
+    build:
+      context: .
+      dockerfile: app-embed.Dockerfile
+      args:
+        BASE_IMAGE: orangescrum-cloud-base:latest
+        BUILD_DATE: "${BUILD_DATE:-$(date +%s)}"
+    image: orangescrum-cloud-app:latest
+    command: tail -f /dev/null

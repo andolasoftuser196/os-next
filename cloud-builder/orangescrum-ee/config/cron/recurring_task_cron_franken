@@ -1,0 +1,4 @@
+# OrangeScrum Recurring Tasks Cron - FrankenPHP Version
+# Runs every 30 minutes using FrankenPHP's embedded PHP CLI
+# Uses dynamic path resolution to find the extracted app directory
+*/30 * * * * EXTRACTED_APP=$(find /tmp -maxdepth 1 -name "frankenphp_*" -type d 2>/dev/null | head -1) && [ -n "$EXTRACTED_APP" ] && cd "$EXTRACTED_APP" && /orangescrum-app/orangescrum-ee php-cli bin/cake.php recurring_task >> /data/logs/cron.log 2>&1

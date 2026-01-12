@@ -15,10 +15,19 @@ http:
       priority: 150
       service: noop@internal
     
-    # V4 Durango - Must come FIRST before wildcards
-    durango:
+    # Durango PG - selfhosted subdomain
+    durango-pg:
+      rule: "Host(`selfhosted.{{ domain }}`)"
+      service: durango-pg
+      entryPoints:
+        - websecure
+      tls: {}
+      priority: 100  # Higher priority than wildcards
+    
+    # OrangeScrum V4 - v4 subdomain
+    orangescrum-v4:
       rule: "Host(`v4.{{ domain }}`)"
-      service: durango
+      service: orangescrum-v4
       entryPoints:
         - websecure
       tls: {}
@@ -59,10 +68,15 @@ http:
         permanent: true
 
   services:
-    durango:
+    durango-pg:
       loadBalancer:
         servers:
           - url: "http://durango-pg:80"
+    
+    orangescrum-v4:
+      loadBalancer:
+        servers:
+          - url: "http://orangescrum-v4:80"
     
     orangescrum:
       loadBalancer:

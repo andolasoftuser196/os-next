@@ -13,6 +13,7 @@ RUN apt update && \
         software-properties-common \
         ca-certificates \
         curl \
+        zip \
         apache2 \
         sqlite3 && \
     apt clean && rm -rf /var/lib/apt/lists/*
