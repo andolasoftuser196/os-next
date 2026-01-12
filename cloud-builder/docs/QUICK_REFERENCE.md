@@ -27,13 +27,13 @@
 ### Build (First Time - Slow ~30min)
 
 ```bash
-python3 build_optimized.py
+python3 build.py
 ```
 
 ### Build (Code Changes - Fast ~2min)
 
 ```bash
-python3 build_optimized.py --skip-base
+python3 build.py --skip-base
 ```
 
 ### Clean Everything
@@ -71,12 +71,10 @@ docker compose --env-file .env.production up -d
 
 | File | Purpose |
 |------|---------|
-| `build_optimized.py` | Main build script (two-stage) |
+| `build.py` | Build orchestration script |
 | `builder/base-build.Dockerfile` | Stage 1: Build FrankenPHP base |
 | `builder/app-embed.Dockerfile` | Stage 2: Embed app into binary |
-| `orangescrum-ee/Dockerfile` | Runtime: Alpine + binary |
-| `orangescrum-ee/entrypoint.sh` | Init: migrations + seeds |
-| `orangescrum-ee/docker-compose.yaml` | Deployment config |
+| `orangescrum-ee/orangescrum-ee` | Native FrankenPHP binary (built) |
 
 ## 📚 Full Documentation
 

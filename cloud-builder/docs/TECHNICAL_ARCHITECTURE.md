@@ -59,7 +59,7 @@ Stage 2: App Embedder (Fast, Frequent)
    - Copies application source
    - Embeds app into FrankenPHP binary
 
-3. **Build Orchestrator** (`build_optimized.py`)
+3. **Build Orchestrator** (`build.py`)
    - Manages the entire build pipeline
    - Archives repository from git
    - Extracts binary and deploys application
@@ -214,10 +214,10 @@ Test that data persists across container restarts:
 docker exec orangescrum-multitenant-base-orangescrum-app-1 \
   sh -c 'echo "Test file" > /tmp/frankenphp_*/webroot/files/test.txt'
 
-# 2. Restart container
-docker compose -f durango-builder/orangescrum-ee/docker-compose.yaml restart orangescrum-app
+# 2. For native binary deployment: restart the process
+# (Restart instructions depend on your deployment method)
 
-# 3. Wait 15 seconds, then verify file still exists
+# 3. Verify file still exists
 sleep 15
 docker exec orangescrum-multitenant-base-orangescrum-app-1 \
   sh -c 'cat /tmp/frankenphp_*/webroot/files/test.txt'
@@ -287,7 +287,7 @@ source .venv/bin/activate
 pip install docker
 
 # 3. Run full build with all steps (~25-30 minutes for first build)
-python3 durango-builder/build_optimized.py --all
+python3 durango-builder/build.py --all
 ```
 
 ### Subsequent Builds (Code Changes Only)
@@ -297,7 +297,7 @@ python3 durango-builder/build_optimized.py --all
 source .venv/bin/activate
 
 # Build and deploy (~30-60 seconds)
-python3 durango-builder/build_optimized.py --all --skip-base
+python3 durango-builder/build.py --all --skip-base
 ```
 
 ### Build Options
@@ -306,28 +306,28 @@ The build script supports granular control over each step:
 
 ```bash
 # Full pipeline (archive → build base → build app → extract → deploy)
-python3 durango-builder/build_optimized.py --all
+python3 durango-builder/build.py --all
 
 # Skip base build (use existing orangescrum-cloud-base:latest)
-python3 durango-builder/build_optimized.py --all --skip-base
+python3 durango-builder/build.py --all --skip-base
 
 # Only archive repository
-python3 durango-builder/build_optimized.py --archive
+python3 durango-builder/build.py --archive
 
 # Only build base image (~20-30 min)
-python3 durango-builder/build_optimized.py --build-base
+python3 durango-builder/build.py --build-base
 
 # Only build app image (~1-2 min)
-python3 durango-builder/build_optimized.py --build-app
+python3 durango-builder/build.py --build-app
 
 # Only extract binary (no deployment)
-python3 durango-builder/build_optimized.py --extract
+python3 durango-builder/build.py --extract
 
 # Force rebuild base image even if it exists
-python3 durango-builder/build_optimized.py --all --rebuild-base
+python3 durango-builder/build.py --all --rebuild-base
 
 # Show all options
-python3 durango-builder/build_optimized.py --help
+python3 durango-builder/build.py --help
 ```
 
 ---
@@ -341,7 +341,7 @@ python3 durango-builder/build_optimized.py --help
 **What happens**:
 
 ```bash
-docker compose -f docker-compose.yaml --profile base-build build frankenphp-base-builder
+python3 build.py --build-base
 ```
 
 **Steps**:
@@ -401,7 +401,7 @@ orangescrum-cloud-base:latest - Ready for app embedding
 **What happens**:
 
 ```bash
-python3 durango-builder/build_optimized.py --all --skip-base
+python3 durango-builder/build.py --all --skip-base
 ```
 
 **Detailed Steps**:
@@ -501,7 +501,7 @@ RUN EMBED=dist/app/ ./build-static.sh
 **Build command**:
 
 ```bash
-docker compose -f docker-compose.yaml build orangescrum-app-builder
+python3 build.py
 ```
 
 **What `build-static.sh` does with EMBED**:
@@ -521,17 +521,20 @@ docker compose -f docker-compose.yaml build orangescrum-app-builder
 
 ---
 
-#### Step 4: Start Builder Container (~1 second)
+#### Step 4: Python Build Process
 
 ```bash
-docker compose -f docker-compose.yaml up -d orangescrum-app-builder
+# The build.py script automatically handles:
+# - Docker image setup
+# - Build orchestration
+# - Binary extraction and verification
 ```
 
-**Container state**:
+**Build outputs**:
 
-- Name: `orangescrum-app-builder`
-- Command: `tail -f /dev/null` (keeps container running)
-- Volume: `build-output:/go/src/app/dist` (persistent binary storage)
+- Binary location: `durango-builder/orangescrum-ee/orangescrum-app/orangescrum-ee`
+- Size: ~340MB (includes PHP 8.3 + all extensions + embedded app)
+- Ready to deploy: Can be moved to any host with `run.sh`
 
 ---
 
@@ -640,29 +643,23 @@ Total:                   36.4s  (100.0%)
 ## Directory Structure
 
 ```txt
-durango-multitenant/
-├── durango-builder/
-│   ├── README.md                          # This file
-│   ├── build_optimized.py                 # Main build script
-│   │
-│   ├── builder/
-│   │   ├── docker-compose.yaml  # Two-stage orchestration
-│   │   ├── base-build.Dockerfile          # Stage 1: Base builder
-│   │   ├── app-embed.Dockerfile           # Stage 2: App embedder
-│   │   ├── BUILD_OPTIMIZATION.md          # Optimization documentation
-│   │   └── package/                       # Temporary build directory
-│   │
-│   ├── orangescrum-ee/
-│   │   ├── docker-compose.yaml            # Deployment stack
-│   │   ├── Dockerfile                     # Runtime container
-│   │   └── orangescrum-app/
-│   │       └── orangescrum-ee             # Final binary (90MB)
-│   │
-│   └── package/                           # Git archive extraction
+durango-builder/
+├── README.md                              # Main documentation
+├── build.py                               # Build orchestration script
 │
-├── durango-pg/                            # Application source repository
-├── frankenphp/                            # FrankenPHP source
-└── .venv/                                 # Python virtual environment
+├── builder/
+│   ├── docker-compose.yaml             # Build orchestration
+│   ├── base-build.Dockerfile          # Stage 1: Base builder
+│   ├── app-embed.Dockerfile           # Stage 2: App embedder
+│   └── package/                       # Temporary build directory
+│
+├── orangescrum-ee/
+│   ├── run.sh                         # Native binary runner
+│   ├── .env.example                   # Configuration template
+│   └── orangescrum-app/
+│       └── orangescrum-ee             # Final native binary (340MB)
+│
+└── package/                           # Git archive extraction
 ```
 
 ---
@@ -690,7 +687,7 @@ PHP_EXTENSIONS=bcmath,calendar,ctype,curl,dom,exif,fileinfo,filter,ftp,gd,iconv,
 
 ```bash
 # Build base image first (or let --all build it automatically)
-python3 durango-builder/build_optimized.py --build-base
+python3 durango-builder/build.py --build-base
 ```
 
 #### 2. "ModuleNotFoundError: No module named 'docker'"
@@ -751,9 +748,12 @@ docker volume ls | grep app-
 **Manual fix**:
 
 ```bash
-# If entrypoint didn't run correctly, recreate container
-docker compose -f durango-builder/orangescrum-ee/docker-compose.yaml down
-docker compose -f durango-builder/orangescrum-ee/docker-compose.yaml up -d
+# For native binary deployment, ensure the binary is executable
+chmod +x durango-builder/orangescrum-ee/orangescrum-app/orangescrum-ee
+
+# Then restart using your deployment method
+# Example with systemd:
+sudo systemctl restart orangescrum
 ```
 
 #### 5. "Waiting for app extraction..." timeout
@@ -776,7 +776,7 @@ docker exec orangescrum-multitenant-base-orangescrum-app-1 /orangescrum-app/oran
 
 ```bash
 # Rebuild application with embedded app
-python3 durango-builder/build_optimized.py --all --skip-base
+python3 durango-builder/build.py --all --skip-base
 ```
 
 #### 6. Volume permissions issues
@@ -822,7 +822,7 @@ docker exec orangescrum-app-builder \
 
 ```bash
 # Rebuild with fresh autoloader
-python3 durango-builder/build_optimized.py --all --skip-base
+python3 durango-builder/build.py --all --skip-base
 ```
 
 ---

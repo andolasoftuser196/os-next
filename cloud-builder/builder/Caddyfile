@@ -1,0 +1,143 @@
+{
+        {$CADDY_GLOBAL_OPTIONS}
+
+        frankenphp {
+                #worker /path/to/your/worker.php
+                {$FRANKENPHP_CONFIG}
+        }
+}
+
+{$CADDY_EXTRA_CONFIG}
+
+{$SERVER_NAME:localhost:8080} {
+        #log {
+        #       # Redact the authorization query parameter that can be set by Mercure
+        #       format filter {
+        #               request>uri query {
+        #                       replace authorization REDACTED
+        #               }
+        #       }
+        #}
+
+        # ============================================
+        # CakePHP4 Document Root Configuration
+        # ============================================
+        # Root path: {$SERVER_ROOT:webroot/}
+        # - Environment variable support (can be overridden at runtime)
+        # - Default: webroot/ (CakePHP4 convention)
+        # - Alternative: Can be set to public/ for Symfony-style apps
+        # 
+        # This is the CORRECT approach for CakePHP4, as opposed to:
+        # - OLD approach: php-server -r public/ (Symfony convention)
+        # - WRONG approach: Using project root directly
+        #
+        # The webroot/ directory contains:
+        # - index.php (CakePHP entry point)
+        # - css/, js/, img/, fonts/ (static assets)
+        # - .htaccess (routing rules for Apache/Caddy)
+        # ============================================
+        root * {$SERVER_ROOT:webroot/}
+        encode zstd br gzip
+
+        # ============================================
+        # Remove Sensitive Headers - ALL RESPONSES
+        # ============================================
+        # Remove headers that reveal server/software information
+        # This prevents attackers from identifying specific software versions
+        header -Server
+        header -X-Powered-By
+        header -Server-Timing
+
+        # ============================================
+        # Static files - Cache Optimization
+        # ============================================
+        # Static files matcher - CSS, JS, images, fonts and OrangeScrum assets
+        @static {
+                path /css/*
+                path /js/*
+                path /images/*
+                path /img/*
+                path /fonts/*
+                path /font/*
+                path /favicon.ico
+                path /robots.txt
+                path /sitemap.xml
+                # Source maps for debugging (CSS, JS)
+                path /*.map
+                # OrangeScrum specific static directories
+                path /DownloadTask/*
+                path /Languages/*
+                path /Wiki/*
+                path /angular_templates/*
+                path /csv/*
+                path /db_changes/*
+                path /files/*
+                path /notification.js
+                path /osreports/*
+                path /pdfreports/*
+                path /pushpem/*
+                path /sso/*
+                path /timesheetpdf/*
+                path /invoice-logo/*
+                file
+        }
+
+        # Cache headers for static files (30 days immutable)
+        header @static Cache-Control "public, max-age=2592000, immutable"
+        
+        # Serve static files directly by Caddy (bypasses PHP)
+        file_server @static
+
+        # ============================================
+        # Security Headers - Best Practices
+        # ============================================
+        # Prevent browsers from interpreting files as different content types
+        header X-Content-Type-Options "nosniff"
+        
+        # Prevent click-jacking attacks - disallow embedding in frames
+        header X-Frame-Options "SAMEORIGIN"
+        
+        # Enable XSS protection in older browsers
+        header X-XSS-Protection "1; mode=block"
+        
+        # Referrer Policy - control how much referrer info is shared
+        header Referrer-Policy "strict-origin-when-cross-origin"
+
+        # ============================================
+        # AWS ALB Configuration
+        # ============================================
+        # When running behind AWS Application Load Balancer:
+        # - ALB terminates HTTPS and forwards HTTP to this binary
+        # - ALB adds X-Forwarded-* headers (protocol, host, for)
+        # - Health checks from ALB should be allowed
+        # - HSTS is enabled (ALB handles HTTPS)
+        
+        # Enable HSTS only when accessed via HTTPS (ALB provides HTTPS to clients)
+        # For local development (HTTP only), HSTS is not sent
+        @https {
+                header X-Forwarded-Proto https
+        }
+        header @https Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+
+        # Uncomment the following lines to enable Mercure and Vulcain modules
+        #mercure {
+        #       # Transport to use (default to Bolt)
+        #       transport_url {$MERCURE_TRANSPORT_URL:bolt:///data/mercure.db}
+        #       # Publisher JWT key
+        #       publisher_jwt {env.MERCURE_PUBLISHER_JWT_KEY} {env.MERCURE_PUBLISHER_JWT_ALG}
+        #       # Subscriber JWT key
+        #       subscriber_jwt {env.MERCURE_SUBSCRIBER_JWT_KEY} {env.MERCURE_SUBSCRIBER_JWT_ALG}
+        #       # Allow anonymous subscribers (double-check that it's what you want)
+        #       anonymous
+        #       # Enable the subscription API (double-check that it's what you want)
+        #       subscriptions
+        #       # Extra directives
+        #       {$MERCURE_EXTRA_DIRECTIVES}
+        #}
+        #vulcain
+
+        {$CADDY_SERVER_EXTRA_DIRECTIVES}
+
+        # PHP fallback for dynamic requests
+        php_server
+}

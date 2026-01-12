@@ -1,0 +1,108 @@
+; ==========================================
+; PHP Performance Optimization
+; For FrankenPHP with CakePHP4 Application
+; ==========================================
+
+; Memory and Execution Settings
+; Maximum memory per request (CakePHP 4 needs ~256MB for complex operations)
+memory_limit = 512M
+
+; Maximum execution time for scripts
+max_execution_time = 300
+
+; Maximum input variable depth (prevents DOS attacks)
+max_input_nesting_level = 64
+
+; File Upload Settings
+; Maximum file upload size (100MB for OrangeScrum documents)
+upload_max_filesize = 100M
+
+; POST data size limit
+post_max_size = 100M
+
+; Number of allowed file uploads
+max_file_uploads = 20
+
+; Output Buffering & Compression
+; Enable output buffering for gzip compression
+output_buffering = 4096
+
+; Enable gzip compression of output
+zlib.output_compression = On
+
+# Compression level (1-9, higher = better compression but slower)
+zlib.output_compression_level = 6
+
+# ==========================================
+# Session Configuration
+# ==========================================
+
+; Session save handler (using Redis for distributed deployments)
+session.save_handler = redis
+
+; Session lifetime (30 minutes)
+session.gc_maxlifetime = 1800
+
+; Use strict session mode for security
+session.use_strict_mode = On
+
+; HTTP-only cookies (prevent JavaScript access)
+session.cookie_httponly = On
+
+; Secure cookies (only over HTTPS in production)
+session.cookie_secure = Off
+
+; Use SameSite cookie attribute
+session.cookie_samesite = Lax
+
+; OPcache (Bytecode Caching)
+; Critical for performance with embedded app
+; Enable OPcache
+opcache.enable = On
+
+; Memory usage for OPcache (MB)
+opcache.memory_consumption = 256
+
+; Interned strings buffer (MB)
+opcache.interned_strings_buffer = 32
+
+; Maximum number of keys
+opcache.max_accelerated_files = 10000
+
+; Revalidate frequency (0 = never revalidate in production)
+opcache.revalidate_freq = 0
+
+; Validate timestamps (set to 0 in production for max performance)
+opcache.validate_timestamps = 1
+
+; Enable file optimization
+opcache.optimization_level = 0x7FFEBFFF
+
+; Error Reporting & Debugging
+; Show all errors (production: E_ALL & ~E_DEPRECATED & ~E_STRICT)
+error_reporting = E_ALL
+
+; Display errors to client (production: Off)
+display_errors = Off
+
+; Log errors to file
+log_errors = On
+
+; Error log location
+error_log = /tmp/php_errors.log
+
+; Database & Cache Performance
+; Default charset for database operations
+default_charset = "UTF-8"
+
+; Default socket timeout (seconds)
+default_socket_timeout = 60
+
+; FrankenPHP Specific Settings
+; Number of worker threads (auto-detected, can override)
+; Uncomment and adjust based on CPU cores
+; frankenphp.num_workers = 4
+
+; Worker command lifecycle
+; Set to 0 for request lifecycle (simpler), higher for persistent (faster)
+; frankenphp.worker_script = true

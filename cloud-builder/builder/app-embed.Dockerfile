@@ -109,6 +109,14 @@ RUN composer run-script post-install-cmd --no-interaction
 FROM orangescrum-cloud-base:latest AS app-embedder
 
 # ==========================================
+# Copy Performance Configuration Files
+# ==========================================
+# Copy optimized Caddy configuration for serving static files efficiently
+# and routing dynamic requests to PHP
+# CRITICAL: Place in dist/app/ so it ends up at /app/Caddyfile when extracted
+COPY ./Caddyfile /go/src/app/caddy/frankenphp/Caddyfile
+
+# ==========================================
 # Prepare Application Directory
 # ==========================================
 # FrankenPHP expects the application in dist/app/ directory
@@ -125,6 +133,28 @@ WORKDIR /go/src/app/dist/app
 # - Configuration files
 # - Public assets
 COPY --from=composer-helper /app/ ./
+
+# ==========================================
+# Copy Custom PHP Configuration
+# ==========================================
+# Copy optimized php.ini to be embedded in the static binary
+# 
+# FrankenPHP's php-server.go checks for php.ini in the embedded app:
+# if [ exists $EmbeddedAppPath/php.ini ] {
+#     PHP_INI_SCAN_DIR += :$EmbeddedAppPath
+# }
+#
+# This allows:
+# - Static binary includes runtime PHP configuration
+# - No separate config files needed at runtime
+# - Environment variables can still override settings
+# - Production-ready with optimized defaults
+#
+# Settings priority (highest to lowest):
+# 1. PHP_* environment variables (docker-compose.yaml)
+# 2. Embedded php.ini file (this file)
+# 3. PHP compiled defaults
+COPY ./php.ini ./php.ini
 
 # ==========================================
 # Build Static Binary with Embedded App

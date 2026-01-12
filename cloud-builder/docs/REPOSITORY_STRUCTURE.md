@@ -1,4 +1,4 @@
-# Durango Builder - FrankenPHP Build System
+# Durango Builder - FrankenPHP Cloud Build System
 
 Build system for creating static FrankenPHP binaries with embedded OrangeScrum application.
 
@@ -6,28 +6,26 @@ Build system for creating static FrankenPHP binaries with embedded OrangeScrum a
 
 ```txt
 durango-builder/
-├── build.py                    # Main build script (optimized two-stage build)
-├── build_optimized.py          # Alternate/verbose build script (two-stage build)
+├── build.py                    # Main build orchestration script
+├── requirements.txt            # Python dependencies
 ├── backup_volumes.sh           # Script to backup Docker volumes
 │
 ├── builder/                    # Docker build context for FrankenPHP
 │   ├── base-build.Dockerfile       # Stage 1: Builds FrankenPHP base (slow, cached)
 │   ├── app-embed.Dockerfile        # Stage 2: Embeds app into binary (fast)
-│   ├── docker-compose.yaml   # Two-stage build compose file
+│   ├── docker-compose.yaml         # Build orchestration (used by build.py)
 │   ├── package/                    # TEMP: App source copied here for Docker context
 │   │   └── .gitkeep                   # (directory ignored, only .gitkeep tracked)
-│   └── BUILD_OPTIMIZATION.md       # Build optimization documentation
+│   └── docs/                        # Build documentation
 │
 ├── package/                    # TEMP: Git archive extraction target
 │   └── .gitkeep                   # (directory ignored, only .gitkeep tracked)
 │
 ├── orangescrum-ee/             # 🚀 DEPLOYMENT FOLDER (distribution package)
-│   ├── docker-compose.yaml         # Production deployment compose file
-│   ├── Dockerfile                  # Runtime container (Alpine + binary)
-│   ├── entrypoint.sh              # Container entrypoint with migrations & seeds
+│   ├── run.sh                      # Native binary runner script
 │   ├── .env.example               # Environment configuration template
-│   ├── .env.test-*                # Test environment configurations
 │   └── orangescrum-app/           # Binary output directory
+│       └── orangescrum-ee         # Final native executable (~340MB)
 │       └── orangescrum-ee         # ⚠️ IGNORED - Built binary (150+ MB)
 │
 ├── backups/                    # TEMP: Docker volume backups
@@ -109,34 +107,32 @@ The build system uses a **two-stage approach** for optimal build times:
 
 ```bash
 # Build everything from scratch
-python3 build_optimized.py
+python3 build.py
 ```
 
 ### Subsequent Builds (Fast ~2 min)
 
 ```bash
 # Skip base image rebuild, only embed new app code
-python3 build_optimized.py --skip-base
+python3 build.py --skip-base
 ```
 
 ### Force Rebuild Base Image
 
 ```bash
 # Rebuild base image from scratch
-python3 build_optimized.py --rebuild-base
+python3 build.py --rebuild-base
 ```
 
 ## 📦 What Gets Committed vs Ignored
 
 ### ✅ Committed (Tracked by Git)
 
-- Build scripts: `build_optimized.py`, `build.py`
-- Docker configurations: `builder/*.Dockerfile`, `builder/*.yaml`
+- Build scripts: `build.py`, `requirements.txt`
+- Docker configurations: `builder/*.Dockerfile`, `builder/docker-compose.yaml`
 - Deployment package: `orangescrum-ee/` (structure only, not binary)
-  - `docker-compose.yaml`
-  - `Dockerfile`
-  - `entrypoint.sh`
-  - `.env.example`
+  - `run.sh` - Binary runner script
+  - `.env.example` - Configuration template
 - Documentation: All `.md` files
 - Configuration templates
 - `.gitkeep` files for temp directories
@@ -307,7 +303,7 @@ docker exec <container> psql ... -c "SELECT nextval('actions_id_seq');"
 3. Run build:
 
    ```bash
-   python3 build_optimized.py --skip-base
+   python3 build.py --skip-base
    ```
 
 4. Test deployment
@@ -318,7 +314,7 @@ docker exec <container> psql ... -c "SELECT nextval('actions_id_seq');"
 2. Rebuild base image:
 
    ```bash
-   python3 build_optimized.py --rebuild-base
+   python3 build.py --rebuild-base
    ```
 
 ### Updating Dependencies
@@ -327,7 +323,7 @@ docker exec <container> psql ... -c "SELECT nextval('actions_id_seq');"
 2. Run full build:
 
    ```bash
-   python3 build_optimized.py
+   python3 build.py
    ```
 
 ## 📊 Build Times
@@ -379,9 +375,8 @@ When contributing to this build system:
 ### Build Fails
 
 ```bash
-# Clean and rebuild
-docker compose -f builder/docker-compose.yaml down
-python3 build_optimized.py --rebuild-base
+# Clean and rebuild (using build.py)
+python3 build.py --rebuild-base
 ```
 
 ### Binary Not Working

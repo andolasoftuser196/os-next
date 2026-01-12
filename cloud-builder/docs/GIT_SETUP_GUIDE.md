@@ -20,7 +20,7 @@ This is **NOT** the application source code repository. It's the **packaging and
 
 **What happens**:
 
-- `build_optimized.py` runs `git archive` on `../durango-pg`
+- `build.py` runs `git archive` on `../durango-pg`
 - Extracts complete CakePHP app to this directory
 - Used as staging before Docker build
 
@@ -51,7 +51,7 @@ package/
 
 **What happens**:
 
-- `build_optimized.py` copies from `package/` to here
+- `build.py` copies from `package/` to here
 - Docker uses this as build context
 - `app-embed.Dockerfile` embeds this into binary
 
@@ -71,40 +71,35 @@ package/
 
 ### **durango-builder/orangescrum-ee/** - DEPLOYMENT Package
 
-**Purpose**: Final distribution folder ready for deployment
+**Purpose**: Application deployment folder with binary, configuration, and runner scripts
 
 **What's TRACKED**:
 
-- ✅ `docker-compose.yaml` - Production deployment config
-- ✅ `Dockerfile` - Runtime container definition
-- ✅ `entrypoint.sh` - Initialization script
+- ✅ `run.sh` - Native binary runner script
 - ✅ `.env.example` - Configuration template
-- ✅ `.env.test-*` - Test configurations
 - ✅ Directory structure
+- ✅ Configuration files
 
 **What's IGNORED**:
 
-- ❌ `orangescrum-app/orangescrum-ee` - The binary (150+ MB)
+- ❌ `orangescrum-app/orangescrum-ee` - The binary (340+ MB)
 - ❌ `.env` files (except examples)
 
 **Status**:
 
-- 📦 **Core deployment package**
-- 🚀 **This folder can be deployed standalone**
+- 🚀 **Cloud builder deployment package**
+- 📦 **Ready for standalone deployment**
 - ✅ Commit structure, not binaries
 
 **Content Example**:
 
 ```txt
 orangescrum-ee/
-├── docker-compose.yaml    # ← Tracked
-├── Dockerfile             # ← Tracked
-├── entrypoint.sh         # ← Tracked
-├── .env.example          # ← Tracked
-├── .env.test-*           # ← Tracked
-├── .env                  # ← IGNORED
+├── run.sh               # ← Tracked (native runner)
+├── .env.example         # ← Tracked
+├── .env                 # ← IGNORED (local config)
 └── orangescrum-app/
-    └── orangescrum-ee    # ← IGNORED (binary)
+    └── orangescrum-ee   # ← IGNORED (binary)
 ```
 
 ---
@@ -164,15 +159,14 @@ durango-builder/
 ├── .gitignore                     # Git ignore rules
 ├── README.md                      # Main documentation
 ├── REPOSITORY_STRUCTURE.md        # This guide
-├── build_optimized.py             # Build script
-├── build.py                       # Legacy build
+├── build.py                       # Build orchestration script
+├── requirements.txt               # Python dependencies
 ├── backup_volumes.sh              # Backup utility
 ├── docs/                          # All documentation
 │   ├── *.md
 ├── builder/                       # Build configuration
 │   ├── *.Dockerfile              # All Dockerfiles
 │   ├── *.yaml                    # Compose files
-│   ├── BUILD_OPTIMIZATION.md
 │   └── package/.gitkeep          # Keep directory
 ├── package/
 │   └── .gitkeep                  # Keep directory
@@ -273,7 +267,7 @@ git commit -am "Feature: Add new module"
 
 # Build (fast, reuses base)
 cd ../durango-builder
-python3 build_optimized.py --skip-base
+python3 build.py --skip-base
 
 # package/ and builder/package/ are regenerated
 # Old binary is replaced
@@ -288,7 +282,7 @@ git clone https://github.com/yourusername/durango-builder.git
 cd durango-builder
 
 # Get the binary (from build artifacts, CI/CD, etc.)
-# Or build it yourself with build_optimized.py
+# Or build it yourself with build.py
 
 # Deploy
 cd orangescrum-ee
@@ -303,7 +297,7 @@ rm -rf package/* builder/package/*
 rm -f orangescrum-ee/orangescrum-app/orangescrum-ee
 
 # Full rebuild
-python3 build_optimized.py
+python3 build.py
 ```
 
 ---
@@ -381,7 +375,7 @@ docker system prune -a
 # Edit: builder/base-build.Dockerfile
 
 # Rebuild base
-python3 build_optimized.py --rebuild-base
+python3 build.py --rebuild-base
 ```
 
 ### Adding New Configuration
@@ -438,7 +432,7 @@ git add package/.gitkeep builder/package/.gitkeep
 ```bash
 # Binary is not in the repository!
 # You need to build it or download it separately
-python3 build_optimized.py
+python3 build.py
 ```
 
 ---
