@@ -9,7 +9,7 @@ PACKAGE_NAME="orangescrum-frankenphp"
 VERSION="${VERSION:-v26.1.1}"
 PACKAGE_DIR="${PACKAGE_NAME}-${VERSION}"
 OUTPUT_FILE="${PACKAGE_NAME}-${VERSION}.tar.gz"
-BINARY="./orangescrum-app/orangescrum-ee"
+BINARY="./orangescrum-app/osv4-prod"
 
 echo "=========================================="
 echo "OrangeScrum FrankenPHP Package Builder"

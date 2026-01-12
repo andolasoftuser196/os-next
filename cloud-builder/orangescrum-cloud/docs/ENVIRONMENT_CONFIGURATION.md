@@ -33,7 +33,7 @@ environment:
 # run-native.sh loads .env
 source .env
 export DB_HOST DB_PORT DB_USERNAME ...
-./orangescrum-app/orangescrum-ee php-server --listen :8080
+./orangescrum-app/osv4-prod php-server --listen :8080
 ```
 
 - Script loads `.env` file with `source`
@@ -47,7 +47,7 @@ export DB_HOST DB_PORT DB_USERNAME ...
 ### .env File Location
 
 ```
-durango-builder/orangescrum-ee/.env
+durango-builde./osv4-prod/.env
 ```
 
 ### Variable Categories
@@ -135,7 +135,7 @@ DEBUG=false
 ```python
 # build.py - Config Override Process
 def _copy_config_overrides():
-    """Copy modified configs from orangescrum-ee/config/ to package/config/"""
+    """Copy modified configs from orangescrum-cloud/config/ to package/config/"""
     config_files = [
         'app_local.example.php',
         'cache_redis.example.php',
@@ -149,7 +149,7 @@ def _copy_config_overrides():
     # These files are embedded into the binary
     for config in config_files:
         shutil.copy2(
-            f"orangescrum-ee/config/{config}",
+            f"orangescrum-cloud/config/{config}",
             f"builder/package/config/{config}"
         )
 ```
@@ -383,7 +383,7 @@ SESSION_HANDLER=database  # Use PostgreSQL for sessions
 docker exec orangescrum-cloud-orangescrum-app-1 env | grep DB_
 
 # Native mode
-./orangescrum-app/orangescrum-ee php-cli -r "echo getenv('DB_HOST');"
+./orangescrum-app/osv4-prod php-cli -r "echo getenv('DB_HOST');"
 ```
 
 ### Verify config file exists
@@ -403,7 +403,7 @@ ls -la /tmp/frankenphp_*/config/
 curl http://localhost:8080/home/healthcheck
 
 # Direct test
-./orangescrum-app/orangescrum-ee php-cli -r "
+./orangescrum-app/osv4-prod php-cli -r "
 \$conn = pg_connect('host=192.168.2.132 port=5432 dbname=orangescrum user=postgres password=postgres');
 echo \$conn ? 'Connected' : 'Failed';
 "

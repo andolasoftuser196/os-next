@@ -1,0 +1,155 @@
+# =============================================================================
+# Durango Builder - FrankenPHP Build System
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Build Artifacts & Binaries
+# -----------------------------------------------------------------------------
+
+# The final deployable binary (built by build script)
+orangescrum-cloud/orangescrum-app/osv4-prod
+orangescrum-cloud/orangescrum-app/frankenphp-*
+
+# Temporary tar archives created during build
+builder/repo.tar
+*.tar
+
+# -----------------------------------------------------------------------------
+# Temporary Build Directories
+# -----------------------------------------------------------------------------
+
+# Package copied to builder for Docker build (temporary)
+builder/package/*
+!builder/package/.gitkeep
+
+# -----------------------------------------------------------------------------
+# Docker & Container Data
+# -----------------------------------------------------------------------------
+
+# Docker volumes and data
+backups/
+*.backup
+
+# Container logs
+*.log
+
+# Generated compose files (created by deploy-lan.sh)
+orangescrum-cloud/docker-compose.ports.generated.yml
+
+# -----------------------------------------------------------------------------
+# Environment & Configuration
+# -----------------------------------------------------------------------------
+
+# Environment files (keep .env.example)
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Secrets and credentials
+secrets/
+*.key
+*.pem
+*.crt
+
+# -----------------------------------------------------------------------------
+# Python
+# -----------------------------------------------------------------------------
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# Distribution / packaging
+*.egg-info/
+dist/
+build/
+
+# -----------------------------------------------------------------------------
+# IDE & Editor
+# -----------------------------------------------------------------------------
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# JetBrains IDEs
+.idea/
+*.iml
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# -----------------------------------------------------------------------------
+# OS Generated
+# -----------------------------------------------------------------------------
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+.directory
+.Trash-*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# -----------------------------------------------------------------------------
+# Testing & Development
+# -----------------------------------------------------------------------------
+
+# Test databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Coverage reports
+.coverage
+htmlcov/
+coverage.xml
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# -----------------------------------------------------------------------------
+# Documentation Build
+# -----------------------------------------------------------------------------
+
+# Generated documentation
+docs/_build/
+site/
+
+# -----------------------------------------------------------------------------
+# Notes
+# -----------------------------------------------------------------------------
+# - orangescrum-cloud/ is the DEPLOYMENT folder (keep structure, ignore binary)
+# - package/ is TEMPORARY (git archives extract here before build)
+# - builder/package/ is TEMPORARY (copied from package/ for Docker context)
+# - backups/ contains volume backups (don't commit)
+builder/frankenphp-linux*
+orangescrum-cloud/orangescrum-app/osv4-prod*
+migration_artifacts/*
+orangescrum-cloud/frankenphp.pid
+orangescrum-cloud/orangescrum-frankenphp-*.tar.gz
+orangescrum-cloud/queue-worker.pid
+builder/package/*

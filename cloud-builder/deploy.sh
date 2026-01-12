@@ -4,7 +4,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ORANGESCRUM_EE_DIR="$SCRIPT_DIR/orangescrum-ee"
+ORANGESCRUM_EE_DIR="$SCRIPT_DIR/orangescrum-cloud"
 COMPOSE_FILE="$ORANGESCRUM_EE_DIR/docker-compose.yaml"
 
 ENV_FILE="$ORANGESCRUM_EE_DIR/.env"

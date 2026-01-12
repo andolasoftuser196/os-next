@@ -11,8 +11,8 @@ cd "$SCRIPT_DIR"
 # Auto-detect binary path
 if [ -f "./bin/orangescrum" ]; then
     BINARY="./bin/orangescrum"
-elif [ -f "./orangescrum-app/orangescrum-ee" ]; then
-    BINARY="./orangescrum-app/orangescrum-ee"
+elif [ -f "./orangescrum-app/osv4-prod" ]; then
+    BINARY="./orangescrum-app/osv4-prod"
 else
     echo "❌ Binary not found"
     exit 1
@@ -36,4 +36,4 @@ if [ -f "$ENV_FILE" ]; then
 fi
 
 # Run the command with all arguments
-"$BINARY" php-cli "$@"
+"$BINARY" "$@"

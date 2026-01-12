@@ -107,7 +107,7 @@ docker compose ps
 ## Project Structure
 
 ```
-orangescrum-ee/
+orangescrum-cloud/
 ├── Dockerfile                      # FrankenPHP runtime container
 ├── docker-compose.yaml             # Service orchestration
 ├── entrypoint.sh                   # Startup script with config generation
@@ -115,7 +115,7 @@ orangescrum-ee/
 ├── FRANKENPHP_DEPLOYMENT.md       # Detailed deployment guide
 ├── README.md                       # This file
 ├── orangescrum-app/
-│   └── orangescrum-ee             # FrankenPHP static binary (embedded app)
+│   └── osv4-prod             # FrankenPHP static binary (embedded app)
 └── config/
     ├── cache_file.php             # File cache configuration
     └── cron/
@@ -175,7 +175,7 @@ docker compose --profile queue up -d
 **Command:**
 
 ```bash
-/orangescrum-app/orangescrum-ee php-cli bin/cake.php queue worker --verbose
+/orangescrum-app/osv4-prod php-cli bin/cake.php queue worker --verbose
 ```
 
 ## Environment Configuration
@@ -330,8 +330,8 @@ SKIP_MIGRATIONS=1
 # Run manually
 docker exec -it orangescrum-cloud-base-orangescrum-app-1 bash
 cd /tmp/frankenphp_*
-/orangescrum-app/orangescrum-ee php-cli bin/cake.php migrations migrate
-/orangescrum-app/orangescrum-ee php-cli bin/cake.php migrations migrate -p Gitsync
+/orangescrum-app/osv4-prod php-cli bin/cake.php migrations migrate
+/orangescrum-app/osv4-prod php-cli bin/cake.php migrations migrate -p Gitsync
 ```
 
 ## Scaling
@@ -368,12 +368,12 @@ docker compose logs orangescrum-app
 # Common issues:
 # 1. Database connection failed
 docker compose exec orangescrum-app \
-  /orangescrum-app/orangescrum-ee php-cli -r \
+  /orangescrum-app/osv4-prod php-cli -r \
   "var_dump(pg_connect('host='.getenv('DB_HOST').' dbname='.getenv('DB_NAME').' user='.getenv('DB_USERNAME').' password='.getenv('DB_PASSWORD')));"
 
 # 2. Redis connection failed
 docker compose exec orangescrum-app \
-  /orangescrum-app/orangescrum-ee php-cli -r \
+  /orangescrum-app/osv4-prod php-cli -r \
   "\$r = new Redis(); var_dump(\$r->connect(getenv('REDIS_HOST'), getenv('REDIS_PORT')));"
 ```
 
@@ -399,7 +399,7 @@ docker compose exec orangescrum-app cat /data/logs/cron.log
 
 # Test cron command manually
 docker compose exec orangescrum-app bash -c \
-  "cd /tmp/frankenphp_* && /orangescrum-app/orangescrum-ee php-cli bin/cake.php recurring_task"
+  "cd /tmp/frankenphp_* && /orangescrum-app/osv4-prod php-cli bin/cake.php recurring_task"
 ```
 
 ### Performance issues

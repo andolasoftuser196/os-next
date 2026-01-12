@@ -33,9 +33,9 @@ WORKDIR /orangescrum-app
 # Copy FrankenPHP Static Binary
 # ==========================================
 # This self-contained binary includes PHP 8.3, Caddy, and the embedded app
-COPY ./orangescrum-app/orangescrum-ee /orangescrum-app/orangescrum-ee
-RUN chmod +x /orangescrum-app/orangescrum-ee && \
-    chown orangescrum:orangescrum /orangescrum-app/orangescrum-ee
+COPY ./orangescrum-app/osv4-prod /orangescrum-app/osv4-prod
+RUN chmod +x /orangescrum-app/osv4-prod && \
+    chown orangescrum:orangescrum /orangescrum-app/osv4-prod
 
 # ==========================================
 # Copy Configuration Files
@@ -70,7 +70,7 @@ RUN mkdir -p \
 # ==========================================
 # Note: FrankenPHP needs to bind to port 80, so we use setcap instead of switching user here
 # The entrypoint will drop privileges after binding
-RUN setcap 'cap_net_bind_service=+ep' /orangescrum-app/orangescrum-ee
+RUN setcap 'cap_net_bind_service=+ep' /orangescrum-app/osv4-prod
 
 # Switch to non-root user
 USER orangescrum
@@ -84,4 +84,4 @@ EXPOSE 80
 # Container Startup
 # ==========================================
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["/orangescrum-app/orangescrum-ee", "php-server", "-r", "webroot", "-l", "0.0.0.0:80"]
+CMD ["/orangescrum-app/osv4-prod", "php-server", "-r", "webroot", "-l", "0.0.0.0:80"]

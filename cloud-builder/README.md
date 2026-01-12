@@ -26,8 +26,8 @@ The resulting binary is self-contained and can be deployed to any cloud platform
 
 1. Archives the application code
 2. Embeds it into FrankenPHP using multi-stage Docker build
-3. Produces a standalone `orangescrum-ee` binary (~340 MB)
-4. Optionally deploys using `orangescrum-ee/docker-compose.yaml`
+3. Produces a standalone `orangescrum-cloud` binary (~340 MB)
+4. Optionally deploys using `orangescrum-cloud/docker-compose.yaml`
 
 ### External Dependencies
 
@@ -77,7 +77,7 @@ python3 build.py
 ### Step 3: Configure Deployment
 
 ```bash
-cd orangescrum-ee
+cd orangescrum-cloud
 
 # Copy example environment file
 cp .env.example .env
@@ -134,7 +134,7 @@ Build the binary without deploying:
 python3 build.py --skip-deploy
 ```
 
-The binary will be at `orangescrum-ee/orangescrum-app/orangescrum-ee`.
+The binary will be at `orangescrum-cloud/orangescrum-app/orangescrum-cloud`.
 
 ### Clean Build
 
@@ -150,13 +150,13 @@ python3 build.py --clean
 
 ### Local Development
 
-- Use `orangescrum-ee/docker-compose.yaml`
+- Use `orangescrum-cloud/docker-compose.yaml`
 - Connects to external PostgreSQL database
 - Exposes port 8080 by default
 
 ### Production Deployment
 
-The standalone `orangescrum-ee` binary can be deployed to:
+The standalone `orangescrum-cloud` binary can be deployed to:
 
 - **Cloud Platforms**: AWS, Google Cloud, Azure, DigitalOcean
 - **Container Platforms**: Kubernetes, Docker Swarm, ECS
@@ -188,12 +188,12 @@ cloud-builder/
 │   ├── base-build.Dockerfile   # FrankenPHP base image
 │   ├── app-embed.Dockerfile    # App embedding
 │   └── docker-compose.yaml     # Builder services
-└── orangescrum-ee/
+└── orangescrum-cloud/
     ├── docker-compose.yaml     # Deployment config
     ├── .env.example            # Environment template
     ├── Dockerfile              # Production container
     └── orangescrum-app/
-        └── orangescrum-ee      # Static binary (generated)
+        └── orangescrum-cloud      # Static binary (generated)
 ```
 
 ---
@@ -224,7 +224,7 @@ This is normal for a standalone binary.
 Check your `.env` file settings:
 
 ```bash
-cd orangescrum-ee
+cd orangescrum-cloud
 cat .env | grep DB_
 ```
 
@@ -260,7 +260,7 @@ python3 build.py
 
 ### Configuration Overrides
 
-Place custom PHP config files in `orangescrum-ee/config/`:
+Place custom PHP config files in `orangescrum-cloud/config/`:
 
 - `cache_redis.example.php` - Redis cache configuration
 - `queue.example.php` - Queue configuration  
@@ -271,12 +271,12 @@ These will be copied to the package during build.
 
 ### Multi-Stage Production Build
 
-The `orangescrum-ee/Dockerfile` uses the generated binary:
+The `orangescrum-cloud/Dockerfile` uses the generated binary:
 
 ```dockerfile
 FROM alpine:latest
-COPY orangescrum-app/orangescrum-ee /usr/local/bin/
-ENTRYPOINT ["/usr/local/bin/orangescrum-ee"]
+COPY orangescrum-app/orangescrum-cloud /usr/local/bin/
+ENTRYPOINT ["/usr/local/bin/orangescrum-cloud"]
 ```
 
 ---
@@ -403,7 +403,7 @@ Select an option (1-9):
 # Then choose option 2: Stop all services
 
 # Or use command directly
-docker compose -f orangescrum-ee/docker-compose.yaml down
+docker compose -f orangescrum-cloud/docker-compose.yaml down
 ```
 
 ---
@@ -489,7 +489,7 @@ You can specify custom ports in three ways:
 #### Option 1: Use .env file (Recommended)
 
 ```bash
-cd orangescrum-ee
+cd orangescrum-cloud
 cp .env.example .env
 # Edit .env and set your custom ports:
 # APP_PORT=3000
@@ -608,7 +608,7 @@ git clone <repository-url>
 # Option A: Access via IP
 curl http://192.168.2.132
 
-# Option B: Change binding in orangescrum-ee/.env
+# Option B: Change binding in orangescrum-cloud/.env
 # Set: APP_BIND_IP=127.0.0.1 (or 0.0.0.0)
 
 # Step 3: Restart
@@ -625,7 +625,7 @@ curl http://192.168.2.132
 
 ```bash
 # Stop and remove everything including volumes
-docker compose -f orangescrum-ee/docker-compose.yaml down -v
+docker compose -f orangescrum-cloud/docker-compose.yaml down -v
 
 # Start fresh deployment
 ./deploy.sh

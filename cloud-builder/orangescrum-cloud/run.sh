@@ -10,10 +10,10 @@ cd "$SCRIPT_DIR"
 # Auto-detect binary path (deployment package vs source)
 if [ -f "./bin/orangescrum" ]; then
     BINARY="./bin/orangescrum"
-elif [ -f "./orangescrum-app/orangescrum-ee" ]; then
-    BINARY="./orangescrum-app/orangescrum-ee"
+elif [ -f "./orangescrum-app/osv4-prod" ]; then
+    BINARY="./orangescrum-app/osv4-prod"
 else
-    BINARY="./orangescrum-app/orangescrum-ee"  # fallback for error message
+    BINARY="./orangescrum-app/osv4-prod"  # fallback for error message
 fi
 
 ENV_FILE=".env"

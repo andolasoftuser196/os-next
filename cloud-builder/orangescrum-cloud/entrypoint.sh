@@ -158,7 +158,7 @@ if [ -n "$DB_HOST" ] && [ -z "$SKIP_MIGRATIONS" ] && [ -d "$EXTRACTED_APP" ]; th
     
     # Run main application migrations
     echo "  Running: bin/cake migrations migrate"
-    /orangescrum-app/orangescrum-ee php-cli bin/cake.php migrations migrate 2>&1
+    /orangescrum-app/osv4-prod php-cli bin/cake.php migrations migrate 2>&1
     MIGRATE_EXIT=$?
     if [ $MIGRATE_EXIT -ne 0 ]; then
         echo "  ⚠ Migrations returned exit code $MIGRATE_EXIT, continuing..."
@@ -172,7 +172,7 @@ if [ -n "$DB_HOST" ] && [ -z "$SKIP_MIGRATIONS" ] && [ -d "$EXTRACTED_APP" ]; th
             if [ -d "$plugin_dir" ]; then
                 plugin_name=$(basename "$plugin_dir")
                 echo "  Running: bin/cake migrations migrate -p ${plugin_name}"
-                /orangescrum-app/orangescrum-ee php-cli bin/cake.php migrations migrate -p "$plugin_name" 2>&1
+                /orangescrum-app/osv4-prod php-cli bin/cake.php migrations migrate -p "$plugin_name" 2>&1
                 PLUGIN_EXIT=$?
                 if [ $PLUGIN_EXIT -ne 0 ]; then
                     echo "  ⚠ Plugin ${plugin_name} migrations returned exit code $PLUGIN_EXIT, continuing..."
@@ -245,7 +245,7 @@ if [ "$SHOULD_SEED" = "true" ] && [ -n "$DB_HOST" ] && [ -d "$EXTRACTED_APP" ]; 
     echo "==========================================="
     # Step 2: Run seeders
     echo "  Running: bin/cake migrations seed"
-    SEED_OUTPUT=$(/orangescrum-app/orangescrum-ee php-cli bin/cake.php migrations seed 2>&1)
+    SEED_OUTPUT=$(/orangescrum-app/osv4-prod php-cli bin/cake.php migrations seed 2>&1)
     SEED_EXIT=$?
     echo "$SEED_OUTPUT"
     
@@ -316,7 +316,7 @@ if [ "$QUEUE_WORKER" = "true" ]; then
     
     # Run queue worker with configurable options
     echo "Starting queue worker..."
-    exec /orangescrum-app/orangescrum-ee php-cli bin/cake.php queue worker \
+    exec /orangescrum-app/osv4-prod php-cli bin/cake.php queue worker \
         --max-runtime="${WORKER_MAX_RUNTIME:-1800}" \
         --sleep="${WORKER_SLEEP:-5}" \
         --verbose

@@ -4,8 +4,8 @@
 This script:
 1) Archives the OrangeScrum V4 app from ../apps/orangescrum-v4
 2) Builds the FrankenPHP embedded binary using the builder compose stack
-3) Extracts the produced static binary into orangescrum-ee/orangescrum-app/
-4) Builds + starts the orangescrum-app service using orangescrum-ee/docker-compose.yaml
+3) Extracts the produced static binary into orangescrum-cloud/orangescrum-app/
+4) Builds + starts the orangescrum-app service using orangescrum-cloud/docker-compose.yaml
 
 Notes:
 - Only builds the orangescrum-v4 application (not durango-pg or orangescrum v2)
@@ -32,13 +32,13 @@ BUILDER = ROOT / "builder"
 PACKAGE = BUILDER / "package"
 BUILDER_COMPOSE_FILE = BUILDER / "docker-compose.yaml"
 
-ORANGESCRUM_EE_DIR = ROOT / "orangescrum-ee"
+ORANGESCRUM_EE_DIR = ROOT / "orangescrum-cloud"
 APP_COMPOSE_FILE = ORANGESCRUM_EE_DIR / "docker-compose.yaml"
 APP_ENV_FILE_DEFAULT = ORANGESCRUM_EE_DIR / ".env"
 APP_ENV_FILE_EXAMPLE = ORANGESCRUM_EE_DIR / ".env.example"
 CONFIG_OVERRIDES_DIR = ORANGESCRUM_EE_DIR / "config"
 
-ORANGESCRUM_EE_BINARY = ORANGESCRUM_EE_DIR / "orangescrum-app/orangescrum-ee"
+ORANGESCRUM_EE_BINARY = ORANGESCRUM_EE_DIR / "orangescrum-app/osv4-prod"
 
 FRANKENPHP_BASE_IMAGE = os.environ.get(
     "FRANKENPHP_BASE_IMAGE", "orangescrum-cloud-base:latest"
@@ -68,7 +68,7 @@ def _clean_dir(path: Path):
 
 
 def _copy_config_overrides():
-    """Copy modified config files from orangescrum-ee/config to package/config"""
+    """Copy modified config files from orangescrum-cloud/config to package/config"""
     if not CONFIG_OVERRIDES_DIR.exists():
         print(f"Warning: Config overrides directory not found: {CONFIG_OVERRIDES_DIR}")
         return
@@ -263,25 +263,131 @@ def _copy_frankenphp_binary(docker_client: docker.DockerClient):
     print("Copying FrankenPHP binary from builder container...")
     ORANGESCRUM_EE_BINARY.parent.mkdir(parents=True, exist_ok=True)
 
-    container = docker_client.containers.get("orangescrum-cloud-builder")
-    bits, _ = container.get_archive("/app/frankenphp")
+    # Get container ID from docker compose
+    container_id = _run_cmd_capture(
+        [
+            "docker",
+            "compose",
+            "-f",
+            str(BUILDER_COMPOSE_FILE),
+            "ps",
+            "-q",
+            "orangescrum-app-builder",
+        ],
+        cwd=BUILDER,
+    )
+    if not container_id:
+        raise RuntimeError(
+            "Could not find builder container id (docker compose ps -q returned empty)"
+        )
 
-    with io.BytesIO() as bio:
-        for chunk in bits:
-            bio.write(chunk)
-        bio.seek(0)
-        with tarfile.open(fileobj=bio) as tar:
-            member = tar.getmember("frankenphp")
-            member.name = "orangescrum-ee"
-            tar.extract(member, path=ORANGESCRUM_EE_BINARY.parent)
+    container = docker_client.containers.get(container_id)
+    bits, _ = container.get_archive("/go/src/app/dist/frankenphp-linux-x86_64")
 
-    os.chmod(ORANGESCRUM_EE_BINARY, 0o755)
+    tar_stream = io.BytesIO(b"".join(bits))
+    with tarfile.open(fileobj=tar_stream) as tar:
+        tar.extractall(path=ORANGESCRUM_EE_BINARY.parent)
+
+    extracted_binary = ORANGESCRUM_EE_BINARY.parent / "frankenphp-linux-x86_64"
+    if extracted_binary.exists():
+        extracted_binary.rename(ORANGESCRUM_EE_BINARY)
+
+    ORANGESCRUM_EE_BINARY.chmod(0o755)
     size_mb = ORANGESCRUM_EE_BINARY.stat().st_size / (1024 * 1024)
     print(f"✓ FrankenPHP binary extracted: {ORANGESCRUM_EE_BINARY} ({size_mb:.1f} MB)")
 
 
+def _resolve_env_file(path_str: str | None) -> Path:
+    """Resolve which .env file to use"""
+    if path_str:
+        return Path(path_str).expanduser().resolve()
+    if APP_ENV_FILE_DEFAULT.exists():
+        return APP_ENV_FILE_DEFAULT
+    return APP_ENV_FILE_EXAMPLE
+
+
+def _wait_for_app_healthy(
+    docker_client: docker.DockerClient,
+    timeout_s: int = 180,
+):
+    """Wait for orangescrum-app container to become healthy"""
+    print("Waiting for orangescrum-app to become healthy...")
+
+    start = time.time()
+    while time.time() - start < timeout_s:
+        try:
+            # Try to get container by service name
+            cid = _run_cmd_capture(
+                ["docker", "compose", "-f", str(APP_COMPOSE_FILE), "ps", "-q", "orangescrum-app"],
+                cwd=ORANGESCRUM_EE_DIR,
+            )
+            if not cid:
+                time.sleep(2)
+                continue
+                
+            container = docker_client.containers.get(cid)
+        except Exception:
+            time.sleep(2)
+            continue
+
+        state = container.attrs.get("State", {})
+        health = state.get("Health", {})
+        status = health.get("Status") or state.get("Status")
+
+        if status == "healthy":
+            print("✓ orangescrum-app is healthy")
+            return True
+        if status in {"exited", "dead"}:
+            logs = container.logs(tail=50).decode("utf-8", errors="ignore")
+            raise RuntimeError(
+                f"orangescrum-app container is not running (status={status}). Logs:\n{logs}"
+            )
+
+        time.sleep(2)
+
+    print(f"⚠️  orangescrum-app did not become healthy within {timeout_s}s")
+    return False
+
+
+def check_prerequisites() -> bool:
+    """Run pre-flight checks before building"""
+    print("Pre-flight checks...")
+
+    ok = True
+
+    # Docker daemon
+    try:
+        docker.from_env().ping()
+        print("✓ Docker daemon is running")
+    except Exception as e:
+        print(f"✗ Docker daemon is not accessible: {e}")
+        ok = False
+
+    # OrangeScrum V4 repository
+    if REPO.exists():
+        print(f"✓ OrangeScrum V4 repository found at {REPO}")
+    else:
+        print(f"✗ OrangeScrum V4 repository not found at {REPO}")
+        ok = False
+
+    # Compose files
+    if BUILDER_COMPOSE_FILE.exists():
+        print(f"✓ Builder compose file found at {BUILDER_COMPOSE_FILE}")
+    else:
+        print(f"✗ Builder compose file not found at {BUILDER_COMPOSE_FILE}")
+        ok = False
+
+    if APP_COMPOSE_FILE.exists():
+        print(f"✓ App compose file found at {APP_COMPOSE_FILE}")
+    else:
+        print(f"✗ App compose file not found at {APP_COMPOSE_FILE}")
+        ok = False
+
+    return ok
+
+
 def _ensure_app_env():
-    """Ensure .env file exists for orangescrum-ee deployment"""
+    """Ensure .env file exists for orangescrum-cloud deployment"""
     if not APP_ENV_FILE_DEFAULT.exists():
         print("Creating .env file from example...")
         if APP_ENV_FILE_EXAMPLE.exists():
@@ -294,24 +400,29 @@ def _ensure_app_env():
         print(f"✓ .env file already exists: {APP_ENV_FILE_DEFAULT}")
 
 
-def _deploy_orangescrum_app(docker_client: docker.DockerClient):
+def _deploy_orangescrum_app(docker_client: docker.DockerClient, env_file: Path, env_overrides: dict[str, str]):
     """Build and start the OrangeScrum app service"""
     print("Deploying OrangeScrum V4 application...")
     
     env = os.environ.copy()
     env["BUILD_DATE"] = str(int(time.time()))
+    env.update(env_overrides)
     
-    # Build the orangescrum-app service
+    # Build and start the orangescrum-app service
     _run_cmd(
-        ["docker", "compose", "-f", str(APP_COMPOSE_FILE), "build"],
+        [
+            "docker",
+            "compose",
+            "-f",
+            str(APP_COMPOSE_FILE),
+            "--env-file",
+            str(env_file),
+            "up",
+            "-d",
+            "--build",
+        ],
         cwd=ORANGESCRUM_EE_DIR,
         env=env,
-    )
-    
-    # Start the service
-    _run_cmd(
-        ["docker", "compose", "-f", str(APP_COMPOSE_FILE), "up", "-d"],
-        cwd=ORANGESCRUM_EE_DIR,
     )
     
     print("✓ OrangeScrum V4 application deployed")
@@ -321,6 +432,13 @@ def main():
     parser = argparse.ArgumentParser(
         description="Build FrankenPHP embedded binary for OrangeScrum V4"
     )
+    
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Run pre-flight checks only"
+    )
+    
     parser.add_argument(
         "--rebuild-base",
         action="store_true",
@@ -332,16 +450,64 @@ def main():
         help="Only build the binary, don't deploy the application"
     )
     parser.add_argument(
+        "--skip-archive",
+        action="store_true",
+        help="Skip git archive/extract step"
+    )
+    parser.add_argument(
+        "--skip-base",
+        action="store_true",
+        help="Skip building base FrankenPHP image"
+    )
+    parser.add_argument(
+        "--keep-package",
+        action="store_true",
+        help="Keep the package directory after build (default is to delete)"
+    )
+    parser.add_argument(
         "--clean",
         action="store_true",
         help="Clean up package directory before building"
     )
     
+    # Environment and configuration options
+    parser.add_argument(
+        "--env-file",
+        help="Path to orangescrum-cloud env file (defaults to .env or .env.example)"
+    )
+    parser.add_argument(
+        "--app-port",
+        type=int,
+        help="Expose app on this port"
+    )
+    parser.add_argument(
+        "--app-bind-ip",
+        help="Bind app port to this IP (default 0.0.0.0)"
+    )
+    
+    # Database configuration options
+    parser.add_argument("--db-host", help="Database hostname for the app")
+    parser.add_argument("--db-port", type=int, help="Database port for the app")
+    parser.add_argument("--db-username", help="Database username for the app")
+    parser.add_argument("--db-password", help="Database password for the app")
+    parser.add_argument("--db-name", help="Database name for the app")
+    
     args = parser.parse_args()
+    
+    # Handle --check flag
+    if args.check:
+        raise SystemExit(0 if check_prerequisites() else 1)
     
     print("=" * 60)
     print("OrangeScrum V4 FrankenPHP Builder")
     print("=" * 60)
+    print()
+    
+    # Run pre-flight checks
+    if not check_prerequisites():
+        print("\n❌ Pre-flight checks failed. Please fix the issues above.")
+        return 1
+    
     print()
     
     # Verify source directory exists
@@ -352,6 +518,27 @@ def main():
     
     docker_client = docker.from_env()
     
+    # Resolve environment file
+    env_file = _resolve_env_file(args.env_file)
+    
+    # Build environment overrides from command-line args
+    env_overrides: dict[str, str] = {}
+    if args.app_port is not None:
+        env_overrides["APP_PORT"] = str(args.app_port)
+    if args.app_bind_ip:
+        env_overrides["APP_BIND_IP"] = args.app_bind_ip
+    
+    if args.db_host:
+        env_overrides["DB_HOST"] = args.db_host
+    if args.db_port is not None:
+        env_overrides["DB_PORT"] = str(args.db_port)
+    if args.db_username:
+        env_overrides["DB_USERNAME"] = args.db_username
+    if args.db_password:
+        env_overrides["DB_PASSWORD"] = args.db_password
+    if args.db_name:
+        env_overrides["DB_NAME"] = args.db_name
+    
     try:
         # Step 1: Clean package directory if requested
         if args.clean and PACKAGE.exists():
@@ -359,25 +546,30 @@ def main():
             _clean_dir(PACKAGE)
             print("✓ Package directory cleaned\n")
         
-        # Step 2: Prepare package directory
-        print("Step 1: Preparing package directory...")
-        _clean_dir(PACKAGE)
+        # Step 2: Prepare package directory (unless skipping archive)
+        if not args.skip_archive:
+            print("Step 1: Preparing package directory...")
+            _clean_dir(PACKAGE)
+            
+            # Step 3: Archive the OrangeScrum V4 app
+            print("\nStep 2: Archiving OrangeScrum V4 application...")
+            archive_path = _archive_repo()
+            
+            # Step 4: Extract to package directory
+            print("\nStep 3: Extracting to package directory...")
+            _extract_archive(archive_path, PACKAGE)
+            
+            # Clean up archive
+            archive_path.unlink(missing_ok=True)
+            
+            # Step 5: Copy config overrides
+            print("\nStep 4: Copying configuration overrides...")
+            _copy_config_overrides()
         
-        # Step 3: Archive the OrangeScrum V4 app
-        print("\nStep 2: Archiving OrangeScrum V4 application...")
-        archive_path = _archive_repo()
-        
-        # Step 4: Extract to package directory
-        print("\nStep 3: Extracting to package directory...")
-        _extract_archive(archive_path, PACKAGE)
-        
-        # Step 5: Copy config overrides
-        print("\nStep 4: Copying configuration overrides...")
-        _copy_config_overrides()
-        
-        # Step 6: Ensure base image exists
-        print("\nStep 5: Ensuring FrankenPHP base image...")
-        _ensure_base_image(docker_client, args.rebuild_base)
+        # Step 6: Ensure base image exists (unless skipping)
+        if not args.skip_base:
+            print("\nStep 5: Ensuring FrankenPHP base image...")
+            _ensure_base_image(docker_client, args.rebuild_base)
         
         # Step 7: Build app embedding
         print("\nStep 6: Building FrankenPHP embedded application...")
@@ -395,11 +587,19 @@ def main():
         print("\nStep 9: Cleaning up builder containers...")
         _stop_builder_stack()
         
+        # Clean up package directory unless --keep-package
+        if not args.keep_package and PACKAGE.exists():
+            print(f"\nCleaning up package directory {PACKAGE}...")
+            shutil.rmtree(PACKAGE)
+        
         # Step 11: Deploy if not skipped
         if not args.skip_deploy:
             print("\nStep 10: Deploying OrangeScrum V4 application...")
             _ensure_app_env()
-            _deploy_orangescrum_app(docker_client)
+            _deploy_orangescrum_app(docker_client, env_file, env_overrides)
+            
+            # Wait for health check
+            _wait_for_app_healthy(docker_client)
         
         print("\n" + "=" * 60)
         print("Build Complete!")
@@ -407,12 +607,15 @@ def main():
         print(f"\nFrankenPHP binary: {ORANGESCRUM_EE_BINARY}")
         
         if not args.skip_deploy:
-            print("\nOrangeScrum V4 is now running!")
-            print("Check deployment with: cd orangescrum-ee && docker compose ps")
-            print("View logs with: cd orangescrum-ee && docker compose logs -f")
+            app_port = env_overrides.get("APP_PORT", "8080")
+            print(f"\n🎉 OrangeScrum V4 is now running!")
+            print(f"Access at: http://localhost:{app_port}")
+            print("\nUseful commands:")
+            print("  cd orangescrum-cloud && docker compose ps      # Check status")
+            print("  cd orangescrum-cloud && docker compose logs -f # View logs")
         else:
             print("\nTo deploy the application:")
-            print("  cd orangescrum-ee")
+            print("  cd orangescrum-cloud")
             print("  cp .env.example .env  # Edit with your settings")
             print("  docker compose up -d")
         

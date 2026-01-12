@@ -1,8 +1,8 @@
 # OrangeScrum FrankenPHP - Production Readiness Analysis
 
 **Date:** January 10, 2026  
-**Analyzed:** orangescrum-ee deployment setup  
-**Binary:** `/orangescrum-app/orangescrum-ee` (FrankenPHP static binary with embedded CakePHP 4 app)
+**Analyzed:** orangescrum-cloud deployment setup  
+**Binary:** `/orangescrum-app/osv4-prod` (FrankenPHP static binary with embedded CakePHP 4 app)
 
 ---
 
@@ -102,13 +102,13 @@ healthcheck:
 **File:** `config/cron/recurring_task_cron_franken`  
 **Issue:** `cd /tmp/frankenphp_*` - wildcard can match multiple directories  
 ```bash
-*/30 * * * * cd /tmp/frankenphp_* && /orangescrum-app/orangescrum-ee php-cli bin/cake.php recurring_task
+*/30 * * * * cd /tmp/frankenphp_* && /orangescrum-app/osv4-prod php-cli bin/cake.php recurring_task
 ```
 **Risk:** Cron may fail or run in wrong directory  
 **Fix Required:**
 ```bash
 # Store extracted path in a fixed location
-*/30 * * * * EXTRACTED_APP=$(find /tmp -maxdepth 1 -name "frankenphp_*" -type d | head -1) && cd "$EXTRACTED_APP" && /orangescrum-app/orangescrum-ee php-cli bin/cake.php recurring_task >> /data/logs/cron.log 2>&1
+*/30 * * * * EXTRACTED_APP=$(find /tmp -maxdepth 1 -name "frankenphp_*" -type d | head -1) && cd "$EXTRACTED_APP" && /orangescrum-app/osv4-prod php-cli bin/cake.php recurring_task >> /data/logs/cron.log 2>&1
 ```
 
 ---

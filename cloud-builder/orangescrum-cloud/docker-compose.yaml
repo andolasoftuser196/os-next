@@ -1,0 +1,75 @@
+name: orangescrum-cloud
+services:
+  orangescrum-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_DATE: "${BUILD_DATE:-$(date +%s)}"
+    container_name: ${COMPOSE_PROJECT_NAME:-orangescrum-cloud-base}-orangescrum-app-1
+    restart: unless-stopped
+    networks:
+      - orangescrum-network
+    ports:
+      - "${APP_BIND_IP:-0.0.0.0}:${APP_PORT:-8080}:80"
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost/home/healthcheck || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # CakePHP Queue Worker
+  queue-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_DATE: "${BUILD_DATE:-$(date +%s)}"
+    container_name: ${COMPOSE_PROJECT_NAME:-orangescrum-cloud-base}-queue-worker-1
+    restart: unless-stopped
+    networks:
+      - orangescrum-network
+    env_file:
+      - .env
+    environment:
+      QUEUE_WORKER: "true"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["/orangescrum-app/osv4-prod", "php-cli", "bin/cake.php", "queue", "worker", "--verbose"]
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    profiles:
+      - queue
+
+networks:
+  orangescrum-network:
+    driver: bridge
