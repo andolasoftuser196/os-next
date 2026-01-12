@@ -4,6 +4,17 @@
 
 http:
   routers:
+    # Root domain redirect to www
+    root-redirect:
+      rule: "Host(`{{ domain }}`)"
+      middlewares:
+        - redirect-to-www
+      entryPoints:
+        - websecure
+      tls: {}
+      priority: 150
+      service: noop@internal
+    
     # V4 Durango - Must come FIRST before wildcards
     durango:
       rule: "Host(`v4.{{ domain }}`)"
@@ -39,6 +50,13 @@ http:
         - websecure
       tls: {}
       priority: 100
+
+  middlewares:
+    redirect-to-www:
+      redirectRegex:
+        regex: "^https://{{ domain }}/(.*)"
+        replacement: "https://www.{{ domain }}/${1}"
+        permanent: true
 
   services:
     durango:
