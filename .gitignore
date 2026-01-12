@@ -28,6 +28,7 @@ certs/*.pem
 # Generated configurations
 *.new
 docker-compose.override.yml
+!docker-compose.override.yml.example
 
 # Backup directories
 backups/
