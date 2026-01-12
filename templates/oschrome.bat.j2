@@ -1,0 +1,9 @@
+@echo off
+REM OrangeScrum {{ domain }} Chrome Launcher ({{ profile|upper }})
+REM Target: {{ target_ip }}
+
+start "" "C:\Program Files\Google\Chrome\Application\chrome.exe" ^
+  --user-data-dir="%TEMP%\chrome-{{ domain }}-{{ profile }}" ^
+  --host-rules="MAP *.{{ domain }} {{ target_ip }}" ^
+  --ignore-certificate-errors ^
+  --app=https://v4.{{ domain }}

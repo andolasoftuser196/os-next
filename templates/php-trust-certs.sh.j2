@@ -1,0 +1,47 @@
+#!/bin/bash
+# Trust the custom SSL certificate in the container and setup DNS resolution
+# Domain: {{ domain }}
+# Generated: {{ generated_date }}
+
+set -e
+
+# Add the certificate to the system CA bundle
+if [ -f /usr/local/share/ca-certificates/{{ domain }}.crt ]; then
+    echo "Adding custom certificate to CA bundle..."
+    
+    # For Alpine-based images with update-ca-certificates
+    if command -v update-ca-certificates >/dev/null 2>&1; then
+        update-ca-certificates
+    fi
+    
+    # Also copy to PHP's certificate bundle locations
+    if [ -f /etc/ssl/certs/ca-certificates.crt ]; then
+        cat /usr/local/share/ca-certificates/{{ domain }}.crt >> /etc/ssl/certs/ca-certificates.crt
+    fi
+    
+    # For php.ini openssl default_cert_file
+    if [ -f /etc/ssl/certs/ca-bundle.crt ]; then
+        cat /usr/local/share/ca-certificates/{{ domain }}.crt >> /etc/ssl/certs/ca-bundle.crt
+    fi
+    
+    echo "Certificate added successfully"
+fi
+
+# Add hostname resolution for {{ domain }} domains to traefik container IP
+# All {{ domain }} domains route through traefik for HTTPS
+TRAEFIK_IP="{{ traefik_ip }}"
+
+if grep -q "v4.{{ domain }}" /etc/hosts 2>/dev/null; then
+    echo "Hostname entries already exist in /etc/hosts"
+else
+    echo "Adding hostname resolution for {{ domain }} domains..."
+    {
+        echo "$TRAEFIK_IP v4.{{ domain }}"
+        echo "$TRAEFIK_IP app.{{ domain }}"
+        echo "$TRAEFIK_IP mail.{{ domain }}"
+    } >> /etc/hosts
+    echo "Hostname entries added successfully"
+fi
+
+# Execute the original command
+exec "$@"

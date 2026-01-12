@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=OrangeScrum {{ domain }} ({{ profile|upper }})
+Exec=/usr/bin/google-chrome-stable --user-data-dir=/tmp/chrome-{{ domain }}-{{ profile }} --host-rules="MAP *.{{ domain }} {{ target_ip }}" --ignore-certificate-errors --app=https://v4.{{ domain }}
+StartupNotify=true
+Terminal=false
+Icon=google-chrome
+Type=Application
+Categories=Development;
+Comment=Access {{ domain }} via {{ profile|upper }} ({{ target_ip }})

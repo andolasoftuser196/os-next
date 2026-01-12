@@ -1,0 +1,25 @@
+[req]
+default_bits = 2048
+prompt = no
+default_md = sha256
+distinguished_name = dn
+req_extensions = v3_req
+
+[dn]
+C=US
+ST=State
+L=City
+O=Organization
+OU=Development
+CN=*.ossiba.online
+
+[v3_req]
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = ossiba.online
+DNS.2 = *.ossiba.online
+DNS.3 = v4.ossiba.online
+DNS.4 = mail.ossiba.online
+DNS.5 = www.ossiba.online
+DNS.6 = app.ossiba.online

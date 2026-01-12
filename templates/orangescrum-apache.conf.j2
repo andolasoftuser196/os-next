@@ -1,0 +1,20 @@
+# Auto-generated Apache configuration for Orangescrum (V2)
+# Domain: *.{{ domain }}
+# Generated: {{ generated_date }}
+
+<VirtualHost *:80>
+    ServerName {{ domain }}
+    ServerAlias *.{{ domain }}
+    ServerAdmin webmaster@{{ domain }}
+    DocumentRoot /var/www/html/orangescrum
+
+    <Directory /var/www/html/orangescrum>
+        Options Indexes FollowSymLinks Includes ExecCGI
+        DirectoryIndex index.php index.html
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    ErrorLog ${APACHE_LOG_DIR}/orangescrum-error.log
+    CustomLog ${APACHE_LOG_DIR}/orangescrum-access.log combined
+</VirtualHost>

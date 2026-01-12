@@ -1,0 +1,19 @@
+# Auto-generated Apache configuration for Durango (V4)
+# Domain: v4.{{ domain }}
+# Generated: {{ generated_date }}
+
+<VirtualHost *:80>
+    ServerName v4.{{ domain }}
+    ServerAdmin webmaster@{{ domain }}
+    DocumentRoot /var/www/html/webroot
+
+    <Directory /var/www/html/webroot>
+        Options Indexes FollowSymLinks Includes ExecCGI
+        DirectoryIndex index.php index.html
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    ErrorLog ${APACHE_LOG_DIR}/durango-error.log
+    CustomLog ${APACHE_LOG_DIR}/durango-access.log combined
+</VirtualHost>

@@ -1,0 +1,58 @@
+# Auto-generated Traefik dynamic configuration
+# Domain: {{ domain }}
+# Generated: {{ generated_date }}
+
+http:
+  routers:
+    # V4 Durango - Must come FIRST before wildcards
+    durango:
+      rule: "Host(`v4.{{ domain }}`)"
+      service: durango
+      entryPoints:
+        - websecure
+      tls: {}
+      priority: 100  # Higher priority than wildcards
+    
+    # Orangescrum V2 - Wildcard for all other subdomains
+    orangescrum:
+      rule: "HostRegexp(`{subdomain:[a-z0-9-]+}.{{ domain }}`) && !Host(`v4.{{ domain }}`, `mail.{{ domain }}`)"
+      service: orangescrum
+      entryPoints:
+        - websecure
+      tls: {}
+      priority: 50  # Lower priority
+    
+    # MailHog
+    mailhog:
+      rule: "Host(`mail.{{ domain }}`)"
+      service: mailhog
+      entryPoints:
+        - websecure
+      tls: {}
+      priority: 100
+
+  services:
+    durango:
+      loadBalancer:
+        servers:
+          - url: "http://durango-pg:80"
+    
+    orangescrum:
+      loadBalancer:
+        servers:
+          - url: "http://orangescrum:80"
+    
+    mailhog:
+      loadBalancer:
+        servers:
+          - url: "http://mailhog:8025"
+
+tls:
+  certificates:
+    - certFile: /certs/{{ domain }}.crt
+      keyFile: /certs/{{ domain }}.key
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /certs/{{ domain }}.crt
+        keyFile: /certs/{{ domain }}.key
