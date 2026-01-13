@@ -80,9 +80,22 @@ echo "✓ Environment validation completed"
 # Start FrankenPHP and Extract App
 # ============================================
 
+# Clean up old FrankenPHP extraction directories
+echo "Cleaning up old extraction directories..."
+OLD_DIRS=$(find /tmp -maxdepth 1 -name "frankenphp_*" -type d 2>/dev/null)
+if [ -n "$OLD_DIRS" ]; then
+    echo "$OLD_DIRS" | while read dir; do
+        rm -rf "$dir" && echo "  ✓ Removed: $dir"
+    done
+else
+    echo "  ✓ No old directories to clean"
+fi
+
 # Start FrankenPHP in background to let it extract the embedded app
+echo "Starting FrankenPHP server..."
 "$@" &
 FRANKENPHP_PID=$!
+echo "  ✓ FrankenPHP started (PID: $FRANKENPHP_PID)"
 
 # Wait for FrankenPHP to extract the embedded app
 echo "Waiting for embedded app extraction..."
@@ -90,26 +103,31 @@ EXTRACTED_APP=""
 for i in {1..30}; do
     EXTRACTED_APP=$(find /tmp -maxdepth 1 -name "frankenphp_*" -type d 2>/dev/null | head -1)
     if [ -n "$EXTRACTED_APP" ]; then
-        echo "Found extracted app at: $EXTRACTED_APP"
+        echo "  ✓ Found extracted app at: $EXTRACTED_APP"
         break
     fi
     sleep 1
 done
 
 if [ -z "$EXTRACTED_APP" ]; then
-    echo "ERROR: Could not find extracted FrankenPHP app directory"
+    echo "❌ Could not find extracted FrankenPHP app directory"
     kill $FRANKENPHP_PID 2>/dev/null || true
     exit 1
 fi
 
 # Wait a bit more for extraction to complete
-sleep 2
+sleep 3
 
-echo "✓ App extracted and ready"
-
-# Export DB password if provided via file
-if [ -n "$DB_PASSWORD_FILE" ] && [ -f "$DB_PASSWORD_FILE" ]; then
-    export DB_PASSWORD=$(cat "$DB_PASSWORD_FILE")
+# Check if FrankenPHP is still running (it may have crashed due to path mismatch)
+if ! kill -0 $FRANKENPHP_PID 2>/dev/null; then
+    echo "⚠ FrankenPHP crashed during extraction (expected with path mismatch)"
+    echo "  Restarting with correct extraction path..."
+    
+    # Start again - this time it should use the existing extracted directory
+    "$@" &
+    FRANKENPHP_PID=$!
+    echo "  ✓ FrankenPHP restarted (PID: $FRANKENPHP_PID)"
+    sleep 2
 fi
 
 echo "✓ App extracted and ready"
@@ -119,33 +137,17 @@ if [ -n "$DB_PASSWORD_FILE" ] && [ -f "$DB_PASSWORD_FILE" ]; then
     export DB_PASSWORD=$(cat "$DB_PASSWORD_FILE")
 fi
 
-# Wait for extracted app and copy config files
-if [ -n "$EXTRACTED_APP" ] && [ -d "$EXTRACTED_APP" ]; then
-    echo "Setting up configuration files..."
-    
-    # Copy Redis cache configuration (default for production)
-    cp "$EXTRACTED_APP/config/cache_redis.example.php" "$EXTRACTED_APP/config/cache_redis.php"
-    echo "  ✓ Redis cache configuration ready"
-    
-    # Copy queue configuration
-    cp "$EXTRACTED_APP/config/queue.example.php" "$EXTRACTED_APP/config/queue.php"
-    echo "  ✓ Queue configuration ready"
-    
-    # Copy SendGrid email configuration
-    cp "$EXTRACTED_APP/config/sendgrid.example.php" "$EXTRACTED_APP/config/sendgrid.php"
-    echo "  ✓ SendGrid email configuration ready"
-    
-    # Copy S3 storage configuration
-    cp "$EXTRACTED_APP/config/storage.example.php" "$EXTRACTED_APP/config/storage.php"
-    echo "  ✓ S3 storage configuration ready"
-    
-    # Copy Google reCAPTCHA configuration
-    cp "$EXTRACTED_APP/config/recaptcha.example.php" "$EXTRACTED_APP/config/recaptcha.php"
-    echo "  ✓ Google reCAPTCHA configuration ready"
-    
-    # Copy Google OAuth configuration
-    cp "$EXTRACTED_APP/config/google_oauth.example.php" "$EXTRACTED_APP/config/google_oauth.php"
-    echo "  ✓ Google OAuth configuration ready"  
+# Copy configuration files
+echo "Setting up configuration files..."
+if [ -d "$EXTRACTED_APP/config" ]; then
+    cp "$EXTRACTED_APP/config/app_local.example.php" "$EXTRACTED_APP/config/app_local.php" 2>/dev/null && echo "  ✓ app_local.php"
+    cp "$EXTRACTED_APP/config/cache_redis.example.php" "$EXTRACTED_APP/config/cache_redis.php" 2>/dev/null && echo "  ✓ cache_redis.php"
+    cp "$EXTRACTED_APP/config/queue.example.php" "$EXTRACTED_APP/config/queue.php" 2>/dev/null && echo "  ✓ queue.php"
+    cp "$EXTRACTED_APP/config/sendgrid.example.php" "$EXTRACTED_APP/config/sendgrid.php" 2>/dev/null && echo "  ✓ sendgrid.php"
+    cp "$EXTRACTED_APP/config/storage.example.php" "$EXTRACTED_APP/config/storage.php" 2>/dev/null && echo "  ✓ storage.php"
+    cp "$EXTRACTED_APP/config/recaptcha.example.php" "$EXTRACTED_APP/config/recaptcha.php" 2>/dev/null && echo "  ✓ recaptcha.php"
+    cp "$EXTRACTED_APP/config/google_oauth.example.php" "$EXTRACTED_APP/config/google_oauth.php" 2>/dev/null && echo "  ✓ google_oauth.php"
+    cp "$EXTRACTED_APP/config/v2_routing.example.php" "$EXTRACTED_APP/config/v2_routing.php" 2>/dev/null && echo "  ✓ v2_routing.php"
 fi
 
 # Run database migrations if DB_HOST is configured and SKIP_MIGRATIONS is not set
