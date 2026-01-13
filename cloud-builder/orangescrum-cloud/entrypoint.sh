@@ -140,14 +140,45 @@ fi
 # Copy configuration files
 echo "Setting up configuration files..."
 if [ -d "$EXTRACTED_APP/config" ]; then
+    # Core configs
     cp "$EXTRACTED_APP/config/app_local.example.php" "$EXTRACTED_APP/config/app_local.php" 2>/dev/null && echo "  ✓ app_local.php"
+    
+    # Cache configs (copy all variants - app will load based on CACHE_ENGINE env var)
     cp "$EXTRACTED_APP/config/cache_redis.example.php" "$EXTRACTED_APP/config/cache_redis.php" 2>/dev/null && echo "  ✓ cache_redis.php"
+    cp "$EXTRACTED_APP/config/cache_file.example.php" "$EXTRACTED_APP/config/cache_file.php" 2>/dev/null && echo "  ✓ cache_file.php"
+    cp "$EXTRACTED_APP/config/cache_memcached.example.php" "$EXTRACTED_APP/config/cache_memcached.php" 2>/dev/null && echo "  ✓ cache_memcached.php"
+    cp "$EXTRACTED_APP/config/cache_auto.example.php" "$EXTRACTED_APP/config/cache_auto.php" 2>/dev/null && echo "  ✓ cache_auto.php"
+    
+    # Queue configs
     cp "$EXTRACTED_APP/config/queue.example.php" "$EXTRACTED_APP/config/queue.php" 2>/dev/null && echo "  ✓ queue.php"
+    
+    # Email configs (copy both - app will load based on EMAIL_TRANSPORT env var)
     cp "$EXTRACTED_APP/config/sendgrid.example.php" "$EXTRACTED_APP/config/sendgrid.php" 2>/dev/null && echo "  ✓ sendgrid.php"
+    cp "$EXTRACTED_APP/config/smtp.example.php" "$EXTRACTED_APP/config/smtp.php" 2>/dev/null && echo "  ✓ smtp.php"
+    
+    # Storage configs
     cp "$EXTRACTED_APP/config/storage.example.php" "$EXTRACTED_APP/config/storage.php" 2>/dev/null && echo "  ✓ storage.php"
+    cp "$EXTRACTED_APP/config/cloudstorage.example.php" "$EXTRACTED_APP/config/cloudstorage.php" 2>/dev/null && echo "  ✓ cloudstorage.php"
+    
+    # Integration configs
     cp "$EXTRACTED_APP/config/recaptcha.example.php" "$EXTRACTED_APP/config/recaptcha.php" 2>/dev/null && echo "  ✓ recaptcha.php"
     cp "$EXTRACTED_APP/config/google_oauth.example.php" "$EXTRACTED_APP/config/google_oauth.php" 2>/dev/null && echo "  ✓ google_oauth.php"
+    cp "$EXTRACTED_APP/config/google_drive.example.php" "$EXTRACTED_APP/config/google_drive.php" 2>/dev/null && echo "  ✓ google_drive.php"
+    cp "$EXTRACTED_APP/config/github.example.php" "$EXTRACTED_APP/config/github.php" 2>/dev/null && echo "  ✓ github.php"
     cp "$EXTRACTED_APP/config/v2_routing.example.php" "$EXTRACTED_APP/config/v2_routing.php" 2>/dev/null && echo "  ✓ v2_routing.php"
+    
+    # Copy Payments plugin config if plugin exists
+    if [ -d "$EXTRACTED_APP/plugins/Payments/config" ]; then
+        cp "$EXTRACTED_APP/plugins/Payments/config/stripe.example.php" "$EXTRACTED_APP/plugins/Payments/config/stripe.php" 2>/dev/null && echo "  ✓ Payments/stripe.php"
+    fi
+    
+    # Copy GitSync plugin configs if plugin exists
+    if [ -d "$EXTRACTED_APP/plugins/GitSync/config" ]; then
+        cp "$EXTRACTED_APP/plugins/GitSync/config/gitsync.example.php" "$EXTRACTED_APP/plugins/GitSync/config/gitsync.php" 2>/dev/null && echo "  ✓ GitSync/gitsync.php"
+        cp "$EXTRACTED_APP/plugins/GitSync/config/gitsync_github.example.php" "$EXTRACTED_APP/plugins/GitSync/config/gitsync_github.php" 2>/dev/null && echo "  ✓ GitSync/gitsync_github.php"
+        cp "$EXTRACTED_APP/plugins/GitSync/config/gitsync_gitlab.example.php" "$EXTRACTED_APP/plugins/GitSync/config/gitsync_gitlab.php" 2>/dev/null && echo "  ✓ GitSync/gitsync_gitlab.php"
+        cp "$EXTRACTED_APP/plugins/GitSync/config/gitsync_bitbucket.example.php" "$EXTRACTED_APP/plugins/GitSync/config/gitsync_bitbucket.php" 2>/dev/null && echo "  ✓ GitSync/gitsync_bitbucket.php"
+    fi
 fi
 
 # Run database migrations if DB_HOST is configured and SKIP_MIGRATIONS is not set
