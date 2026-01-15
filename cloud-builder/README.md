@@ -97,7 +97,7 @@ nano .env
 - `DB_NAME`: `orangescrum`
 - `DB_USERNAME`: `orangescrum`
 - `DB_PASSWORD`: Use a strong password!
-- `SECURITY_SALT`: Generate with `openssl rand -base64 32`
+- `SECURITY_SALT`: Generate with `php -r 'echo hash("sha256", bin2hex(random_bytes(32)));'`
 
 ### Step 4: Deploy
 

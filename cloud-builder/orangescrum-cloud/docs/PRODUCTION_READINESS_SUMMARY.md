@@ -95,7 +95,7 @@ cp .env.example .env
 nano .env  # Configure all required values
 
 # 3. Generate secure values
-export SECURITY_SALT=$(openssl rand -base64 32)
+export SECURITY_SALT=$(php -r 'echo hash("sha256", bin2hex(random_bytes(32)));')
 export DB_PASSWORD=$(openssl rand -base64 24)
 # Add these to .env file
 
@@ -156,7 +156,7 @@ Run through this checklist before deploying to production:
 ### Critical Security Items
 
 - [ ] Run `./validate-env.sh` and fix all errors
-- [ ] Generate `SECURITY_SALT` with: `openssl rand -base64 32`
+- [ ] Generate `SECURITY_SALT` with: `php -r 'echo hash("sha256", bin2hex(random_bytes(32)));'`
 - [ ] Set strong `DB_PASSWORD` (16+ characters)
 - [ ] Set `DEBUG=false`
 - [ ] Configure S3 storage credentials

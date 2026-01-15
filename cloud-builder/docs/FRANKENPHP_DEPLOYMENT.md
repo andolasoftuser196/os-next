@@ -78,7 +78,7 @@ PostgreSQL database connection configured via environment variables:
 ### Required
 
 ```bash
-SECURITY_SALT=<random-string>  # Generate with: openssl rand -base64 32
+SECURITY_SALT=<random-string>  # Generate with: openssl rand -hex 32 | xargs -I {} sh -c 'echo -n "{}" | sha256sum | cut -d" " -f1'
 DB_HOST=<database-host>
 DB_PASSWORD=<database-password>
 ```
@@ -148,10 +148,14 @@ cp .env.example .env
 nano .env  # Edit configuration
 ```
 
-Important: Set `SECURITY_SALT` to a random value:
+Important: Set `SECURITY_SALT` to a SHA256 hash:
 
 ```bash
-SECURITY_SALT=$(openssl rand -base64 32)
+# Generate as SHA256 hash using PHP (CakePHP method)
+SECURITY_SALT=$(php -r 'echo hash("sha256", bin2hex(random_bytes(32)));')
+
+# Or using openssl + sha256sum
+SECURITY_SALT=$(openssl rand -hex 32 | xargs -I {} sh -c 'echo -n "{}" | sha256sum | cut -d" " -f1')
 ```
 
 ### 3. Run with Docker Compose

@@ -75,7 +75,8 @@ RUN apt install -y --no-install-recommends \
         php8.3-zip php8.3-curl \
         php8.3-gd php8.3-pgsql \
         php8.3-memcached php8.3-soap \
-        php8.3-bcmath php8.3-redis && \
+        php8.3-bcmath php8.3-redis \
+        php8.3-sqlite3 && \
     apt clean && rm -rf /var/lib/apt/lists/*
 
 # Install Composer

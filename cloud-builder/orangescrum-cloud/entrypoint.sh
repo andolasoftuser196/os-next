@@ -351,7 +351,6 @@ if [ "$QUEUE_WORKER" = "true" ]; then
     echo "Starting queue worker..."
     exec /orangescrum-app/osv4-prod php-cli bin/cake.php queue worker \
         --max-runtime="${WORKER_MAX_RUNTIME:-1800}" \
-        --sleep="${WORKER_SLEEP:-5}" \
         --verbose
 else
     # Wait for FrankenPHP process and handle crashes

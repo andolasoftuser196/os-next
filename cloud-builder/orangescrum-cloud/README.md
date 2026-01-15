@@ -40,7 +40,7 @@ nano .env
 
 ```bash
 # Generate a secure salt (REQUIRED)
-SECURITY_SALT=$(openssl rand -base64 32)
+SECURITY_SALT=$(php -r 'echo hash("sha256", bin2hex(random_bytes(32)));')
 
 # Database configuration (REQUIRED)
 DB_HOST=your-database-host
@@ -422,7 +422,7 @@ docker stats
 ## Security Best Practices
 
 1. **Never commit `.env` file** - Contains secrets
-2. **Generate strong SECURITY_SALT** - `openssl rand -base64 32`
+2. **Generate strong SECURITY_SALT** - `php -r 'echo hash("sha256", bin2hex(random_bytes(32)));'`
 3. **Use Docker secrets** for passwords - Set `DB_PASSWORD_FILE`
 4. **Keep DEBUG=false** in production
 5. **Use TLS for Redis** - Set `REDIS_PASSWORD`

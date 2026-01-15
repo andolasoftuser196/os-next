@@ -19,9 +19,13 @@
 # - Add/remove PHP extensions
 # - Update Caddy modules
 # - Update Go version
+#
+# Note: Using v1.11.1+ for php-cli -r flag support (PR #1559)
+# This enables inline PHP execution: ./binary php-cli -r 'code'
+# Using musl variant because Alpine uses musl libc
 # ==========================================
 
-FROM dunglas/frankenphp:static-builder AS base-builder
+FROM dunglas/frankenphp:static-builder-musl-1.11.1 AS base-builder
 
 # ==========================================
 # Step 1: Clean Previous Build Artifacts

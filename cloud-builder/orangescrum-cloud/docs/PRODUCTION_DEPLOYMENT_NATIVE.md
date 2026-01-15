@@ -105,7 +105,7 @@ nano .env
 # CRITICAL: Change These Values
 # ============================================
 
-# Generate with: openssl rand -base64 32
+# Generate with: php -r 'echo hash("sha256", bin2hex(random_bytes(32)));'
 SECURITY_SALT=PASTE_GENERATED_VALUE_HERE
 
 # Database (external PostgreSQL)
