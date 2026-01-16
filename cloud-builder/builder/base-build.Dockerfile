@@ -28,7 +28,10 @@ WORKDIR /go/src/app
 ARG NO_COMPRESS=1
 ENV PHP_VERSION=8.3 \
     NO_COMPRESS=${NO_COMPRESS} \
-    SPC_LIBC=musl
+    SPC_LIBC=musl \
+    PHP_EXTENSIONS=bcmath,calendar,ctype,curl,dom,exif,fileinfo,filter,ftp,gd,iconv,intl,ldap,mbstring,opcache,openssl,pcntl,pdo,pdo_pgsql,pdo_sqlite,pgsql,phar,posix,readline,redis,session,shmop,simplexml,soap,sockets,sodium,sqlite3,sysvmsg,sysvsem,sysvshm,tidy,tokenizer,xml,xmlreader,xmlwriter,zip,zlib,zstd
+
+RUN echo "Building FrankenPHP with PHP ${PHP_VERSION} and extensions: ${PHP_EXTENSIONS}"
 
 # Add TEST_BASE to keep the built frankenphp binary when running base builds in test mode.
 # Accepts build-arg override; default is 0 (false).
