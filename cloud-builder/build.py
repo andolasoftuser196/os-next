@@ -190,6 +190,8 @@ def _ensure_base_image(docker_client: docker.DockerClient, rebuild: bool):
         pass
 
     print("Base image not found; building base FrankenPHP image (this may take a while)...")
+    env = os.environ.copy()
+    env["DOCKER_BUILDKIT"] = "1"
     _run_cmd(
         [
             "docker",
@@ -202,6 +204,7 @@ def _ensure_base_image(docker_client: docker.DockerClient, rebuild: bool):
             "frankenphp-base-builder",
         ],
         cwd=BUILDER,
+        env=env,
     )
     print("✓ Base image built successfully")
 
@@ -211,6 +214,8 @@ def _build_app_embed():
     env = os.environ.copy()
     env["BUILD_DATE"] = str(int(time.time()))
     env.setdefault("FRANKENPHP_BASE_IMAGE", FRANKENPHP_BASE_IMAGE)
+    # Ensure BuildKit is enabled so Dockerfile cache mounts are honored
+    env.setdefault("DOCKER_BUILDKIT", "1")
     _run_cmd(
         [
             "docker",
@@ -407,6 +412,8 @@ def _deploy_orangescrum_app(docker_client: docker.DockerClient, env_file: Path, 
     env = os.environ.copy()
     env["BUILD_DATE"] = str(int(time.time()))
     env.update(env_overrides)
+    # Enable BuildKit for compose build during deploy
+    env.setdefault("DOCKER_BUILDKIT", "1")
     
     # Build and start the orangescrum-app service
     _run_cmd(

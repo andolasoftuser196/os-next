@@ -16,6 +16,8 @@
 # Stage 1: Composer Helper
 # Generate vendor directory and autoloader with PHP 8.3
 # ==========================================
+ARG BASE_IMAGE=orangescrum-cloud-base:latest
+ARG NO_COMPRESS=1
 FROM php:8.3-alpine AS composer-helper
 
 # ==========================================
@@ -106,7 +108,12 @@ RUN composer run-script post-install-cmd --no-interaction
 # This stage takes the prepared application from Stage 1 and embeds it
 # into a FrankenPHP static binary. The frankenphp-base image already
 # contains pre-compiled PHP 8.3 and Caddy, so this is FAST.
-FROM orangescrum-cloud-base:latest AS app-embedder
+FROM ${BASE_IMAGE} AS app-embedder
+
+# Expose NO_COMPRESS in this stage so the final build step can honor
+# a build-time override (use --build-arg NO_COMPRESS=0/1).
+ARG NO_COMPRESS
+ENV NO_COMPRESS=${NO_COMPRESS}
 
 # ==========================================
 # Copy Performance Configuration Files
@@ -159,19 +166,13 @@ COPY ./php.ini ./php.ini
 # ==========================================
 # Build Static Binary with Embedded App
 # ==========================================
-# The build-static.sh script will:
-# 1. Take the frankenphp-base (pre-compiled PHP 8.3 + Caddy)
-# 2. Embed the application from dist/app/ directory
-# 3. Link everything into a single static binary
-# 4. Output: dist/frankenphp-linux-x86_64 (~338MB)
-#
-# This is FAST because it only embeds the application code.
-# All the time-consuming compilation of PHP and Caddy was done
-# once in the frankenphp-base image.
-#
-# Environment variable:
-# EMBED=dist/app/ tells FrankenPHP which directory to embed
 WORKDIR /go/src/app/
 
-RUN EMBED=dist/app/ ./build-static.sh
-
+# Build with embedded app - this will recompile the final binary
+# Environment variables are already set in base image (PHP_VERSION=8.3, etc)
+RUN if [ "${NO_COMPRESS}" = "0" ]; then \
+            NC=0; \
+        else \
+            NC=1; \
+        fi && \
+        EMBED=/go/src/app/dist/app NO_COMPRESS=${NC} ./build-static.sh

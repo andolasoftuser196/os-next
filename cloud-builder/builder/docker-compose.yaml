@@ -5,10 +5,15 @@ services:
   # Build this ONCE or when dependencies change
   # ==========================================
   frankenphp-base-builder:
-    container_name: orangescrum-cloud-builder
+    container_name: orangescrum-cloud-base-builder
     build:
       context: .
       dockerfile: base-build.Dockerfile
+      args:
+        # Allow overrides when running compose builds: TEST_BASE keeps the built binary,
+        # NO_COMPRESS controls compression behavior (default kept as before).
+        TEST_BASE: "${TEST_BASE:-0}"
+        NO_COMPRESS: "${NO_COMPRESS:-1}"
     image: orangescrum-cloud-base:latest
     profiles:
       - base-build
@@ -19,12 +24,13 @@ services:
   # Build this FREQUENTLY when app code changes
   # ==========================================
   orangescrum-app-builder:
-    container_name: orangescrum-cloud-builder
+    container_name: orangescrum-cloud-app-builder
     build:
       context: .
       dockerfile: app-embed.Dockerfile
       args:
         BASE_IMAGE: orangescrum-cloud-base:latest
         BUILD_DATE: "${BUILD_DATE:-$(date +%s)}"
+        NO_COMPRESS: "${NO_COMPRESS:-1}"
     image: orangescrum-cloud-app:latest
     command: tail -f /dev/null
