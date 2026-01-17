@@ -172,20 +172,20 @@ LAN_IP=$(hostname -I | awk '{print $1}')
 # 14. Display access information
 print_header "Deployment Complete!"
 
-echo -e "${GREEN}✅ Services Started: $HEALTHY${NC}"
+echo -e "${GREEN}Services Started: $HEALTHY${NC}"
 if [ $UNHEALTHY -gt 0 ]; then
-    echo -e "${RED}❌ Unhealthy Services: $UNHEALTHY${NC}"
+    echo -e "${RED}Unhealthy Services: $UNHEALTHY${NC}"
 fi
 
-echo -e "\n${BLUE}📋 Access Points:${NC}"
+echo -e "\n${BLUE}Access Points:${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo -e "🌐 V2 (Orangescrum):  ${GREEN}https://app.${DOMAIN}${NC}"
-echo -e "🚀 V4 (Durango):      ${GREEN}https://v4.${DOMAIN}${NC}"
-echo -e "📧 MailHog:           ${GREEN}https://mail.${DOMAIN}${NC}"
-echo -e "📦 MinIO API:         ${GREEN}https://storage.${DOMAIN}${NC}"
-echo -e "🖥️  MinIO Console:     ${GREEN}https://console.${DOMAIN}${NC}"
-echo -e "📊 Traefik Dashboard: ${GREEN}http://localhost:8080${NC}"
-echo -e "🔍 Selenium Browser:  ${GREEN}http://localhost:7900${NC} (noVNC)"
+echo -e "V2 (Orangescrum):  ${GREEN}https://app.${DOMAIN}${NC}"
+echo -e "V4 (Durango):      ${GREEN}https://v4.${DOMAIN}${NC}"
+echo -e "MailHog:           ${GREEN}https://mail.${DOMAIN}${NC}"
+echo -e "MinIO API:         ${GREEN}https://storage.${DOMAIN}${NC}"
+echo -e "MinIO Console:     ${GREEN}https://console.${DOMAIN}${NC}"
+echo -e "Traefik Dashboard: ${GREEN}http://localhost:8080${NC}"
+echo -e "Selenium Browser:  ${GREEN}http://localhost:7900${NC} (noVNC)"
 
 if [ -f ".env" ]; then
     HTTP_PORT=$(grep "^TRAEFIK_HTTP_PORT=" .env 2>/dev/null | cut -d'=' -f2 || echo "80")
@@ -197,26 +197,26 @@ if [ -f ".env" ]; then
     fi
 fi
 
-echo -e "\n${BLUE}🔌 Direct Database Access (127.0.0.1):${NC}"
+echo -e "\n${BLUE}Direct Database Access (127.0.0.1):${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo -e "🐬 MySQL:             ${GREEN}localhost:3307${NC}"
-echo -e "🐘 PostgreSQL:        ${GREEN}localhost:5433${NC}"
-echo -e "🔴 Redis:             ${GREEN}localhost:6380${NC}"
-echo -e "📦 MinIO API:         ${GREEN}localhost:9000${NC}"
-echo -e "🖥️  MinIO Console:     ${GREEN}localhost:9001${NC}"
-echo -e "⚡ Memcached (V4):    ${GREEN}localhost:11212${NC}"
-echo -e "⚡ Memcached (V2):    ${GREEN}localhost:11213${NC}"
+echo -e "MySQL:             ${GREEN}localhost:3307${NC}"
+echo -e "PostgreSQL:        ${GREEN}localhost:5433${NC}"
+echo -e "Redis:             ${GREEN}localhost:6380${NC}"
+echo -e "MinIO API:         ${GREEN}localhost:9000${NC}"
+echo -e "MinIO Console:     ${GREEN}localhost:9001${NC}"
+echo -e "Memcached (V4):    ${GREEN}localhost:11212${NC}"
+echo -e "Memcached (V2):    ${GREEN}localhost:11213${NC}"
 
-echo -e "\n${BLUE}🚀 Chrome Launchers:${NC}"
+echo -e "\n${BLUE}Chrome Launchers:${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "Linux:   ${GREEN}launchers/linux-${DOMAIN}-{local|lan}.desktop${NC}"
 echo -e "Windows: ${GREEN}launchers/windows-${DOMAIN}-{local|lan}.bat${NC}"
 
-echo -e "\n${BLUE}🔑 Default Credentials:${NC}"
+echo -e "\n${BLUE}Default Credentials:${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "MinIO:  ${GREEN}minioadmin / minioadmin${NC}"
 
-echo -e "\n${BLUE}💡 Useful Commands:${NC}"
+echo -e "\n${BLUE}Useful Commands:${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  View logs:        docker compose logs -f [service]"
 echo "  Stop services:    docker compose down"

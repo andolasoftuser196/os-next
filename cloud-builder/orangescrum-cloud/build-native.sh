@@ -29,10 +29,6 @@ fi
 # Copy Native-specific files
 echo "Copying Native-specific files..."
 
-echo "  [OK] run-native.sh"
-cp run-native.sh "$TARGET_DIR/"
-chmod +x "$TARGET_DIR/run-native.sh"
-
 echo "  [OK] run.sh"
 cp run.sh "$TARGET_DIR/"
 chmod +x "$TARGET_DIR/run.sh"
@@ -160,10 +156,10 @@ nano .env
 
 ```bash
 # Development mode (foreground, logs in terminal)
-./run-native.sh
+./run.sh
 
 # Production mode (background daemon)
-DAEMON=true ./run-native.sh &
+DAEMON=true ./run.sh &
 ```
 
 **Access:** http://localhost:8080
@@ -256,7 +252,7 @@ Create a deployment package:
 
 This deployment folder is built from:
 - **Common files:** `../orangescrum-cloud/` (config, docs, scripts)
-- **Native-specific:** `../orangescrum-cloud/` (run-native.sh, run.sh, package.sh, caddy.sh)
+- **Native-specific:** `../orangescrum-cloud/` (run.sh, package.sh, caddy.sh)
 - **Build script:** `../orangescrum-cloud/build-native.sh`
 
 ---
@@ -280,5 +276,5 @@ echo "  cd $TARGET_DIR"
 echo "  cp .env.example .env"
 echo "  nano .env  # Configure your settings"
 echo "  ./validate-env.sh"
-echo "  ./run-native.sh"
+echo "  ./run.sh"
 echo ""

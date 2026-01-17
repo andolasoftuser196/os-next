@@ -1,0 +1,45 @@
+[Unit]
+Description=OrangeScrum Queue Worker (CakePHP)
+Documentation=https://orangescrum.com/docs
+After=network.target postgresql.service redis.service orangescrum.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=orangescrum
+Group=orangescrum
+WorkingDirectory=/opt/application
+
+# Load environment variables from .env file
+EnvironmentFile=/opt/application/.env
+
+# Set queue worker flag
+Environment="QUEUE_WORKER=true"
+
+# Start the queue worker
+ExecStart=/opt/application/bin/orangescrum php-cli bin/cake.php queue worker --verbose
+
+# Restart policy
+Restart=on-failure
+RestartSec=10s
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/orangescrum/logs /var/log/orangescrum
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+MemoryMax=1G
+TasksMax=256
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=orangescrum-queue
+
+[Install]
+WantedBy=multi-user.target

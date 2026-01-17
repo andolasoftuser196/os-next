@@ -16,6 +16,47 @@ The resulting binary is self-contained and can be deployed to any cloud platform
 
 ---
 
+## Project Structure
+
+```
+cloud-builder/
+├── build.py                        # Main build orchestrator
+├── builder/                        # FrankenPHP build environment
+│   ├── base-build.Dockerfile      # Stage 1: FrankenPHP base (cached)
+│   ├── app-embed.Dockerfile       # Stage 2: Embed app (fast)
+│   └── docker-compose.yaml        # Build orchestration
+│
+├── orangescrum-cloud/              # Source folder with build scripts
+│   ├── build-docker.sh            # Build Docker deployment package
+│   ├── build-native.sh            # Build Native deployment package
+│   ├── dist-docker.sh             # Create distribution tarball (Docker)
+│   ├── dist-native.sh             # Create distribution tarball (Native)
+│   └── ...deployment-specific files...
+│
+├── orangescrum-cloud-common/       # Common shared files
+│   ├── orangescrum-app/           # FrankenPHP binary (built)
+│   │   └── osv4-prod              # Static binary (~340 MB)
+│   ├── config/                    # Configuration templates
+│   ├── docs/                      # Shared documentation
+│   └── helpers/                   # Helper scripts
+│
+├── orangescrum-cloud-docker/       # Docker deployment source
+│   ├── build.sh                   # Assembles Docker package
+│   ├── Dockerfile                 # Docker-specific
+│   ├── docker-compose.yaml        # Docker orchestration
+│   └── ...copied from common...
+│
+├── orangescrum-cloud-native/       # Native deployment source
+│   ├── build.sh                   # Assembles Native package
+│   ├── run.sh                     # Native deployment runner
+│   └── ...copied from common...
+│
+├── dist-docker/                    # Docker deployment package (built)
+└── dist-native/                    # Native deployment package (built)
+```
+
+---
+
 ## Architecture
 
 ### Source Application
@@ -24,10 +65,10 @@ The resulting binary is self-contained and can be deployed to any cloud platform
 
 ### Build Process
 
-1. Archives the application code
+1. Archives the application code from `../apps/orangescrum-v4`
 2. Embeds it into FrankenPHP using multi-stage Docker build
-3. Produces a standalone `orangescrum-cloud` binary (~340 MB)
-4. Optionally deploys using `orangescrum-cloud/docker-compose.yaml`
+3. Produces a standalone binary at `orangescrum-cloud-common/orangescrum-app/osv4-prod` (~340 MB)
+4. Runs build scripts to create deployment packages at `dist-docker/` and `dist-native/`
 
 ### External Dependencies
 
@@ -62,7 +103,7 @@ ls ../apps/orangescrum-v4
 # Should contain: index.php, config/, src/, webroot/, etc.
 ```
 
-### Step 2: Build FrankenPHP Binary
+### Step 2: Build FrankenPHP Binary & Deployment Packages
 
 ```bash
 cd cloud-builder
@@ -72,6 +113,11 @@ python3 build.py
 
 # Subsequent builds (only rebuilds app, ~2-3 minutes)
 python3 build.py
+
+# This creates:
+# - orangescrum-cloud-common/orangescrum-app/osv4-prod (binary)
+# - dist-docker/ (Docker deployment package)
+# - dist-native/ (Native deployment package)
 ```
 
 ### Step 3: Choose Deployment Type
@@ -81,7 +127,7 @@ Choose between Docker or Native deployment:
 #### Option A: Docker Deployment (Recommended)
 
 ```bash
-cd orangescrum-cloud-docker
+cd dist-docker
 
 # Copy example environment file
 cp .env.example .env
@@ -99,12 +145,12 @@ docker compose up -d
 docker compose logs -f orangescrum-app
 ```
 
-[DOCS] See [orangescrum-cloud-docker/README.md](orangescrum-cloud-docker/README.md) for complete Docker deployment guide.
+See [dist-docker/README.md](dist-docker/README.md) for complete Docker deployment guide.
 
 #### Option B: Native Deployment (Direct System Execution)
 
 ```bash
-cd orangescrum-cloud-native
+cd dist-native
 
 # Copy example environment file
 cp .env.example .env
@@ -116,13 +162,13 @@ nano .env
 ./validate-env.sh
 
 # Run application (foreground)
-./run-native.sh
+./run.sh
 
 # Or run as daemon
-DAEMON=true ./run-native.sh &
+DAEMON=true ./run.sh &
 ```
 
-[DOCS] See [orangescrum-cloud-native/README.md](orangescrum-cloud-native/README.md) for complete native deployment guide.
+See [dist-native/README.md](dist-native/README.md) for complete native deployment guide.
 
 **Critical Settings (both deployments):**
 
@@ -154,7 +200,7 @@ Build the binary without deploying:
 python3 build.py --skip-deploy
 ```
 
-The binary will be at `orangescrum-cloud/orangescrum-app/orangescrum-cloud`.
+The binary will be at `orangescrum-cloud-common/orangescrum-app/osv4-prod`.
 
 ### Clean Build
 
@@ -172,29 +218,29 @@ python3 build.py --clean
 
 This builder supports two deployment methods:
 
-1. **Docker Docker Deployment** (`orangescrum-cloud-docker/`)
+1. **Docker Deployment** (`dist-docker/`)
    - Containerized deployment with Docker Compose
    - Includes infrastructure services (PostgreSQL, Redis, MinIO)
    - Easy orchestration and scaling
    - Recommended for most users
-   - See [orangescrum-cloud-docker/README.md](orangescrum-cloud-docker/README.md)
+   - Built from `orangescrum-cloud-docker/`
 
-2. **Native Native Deployment** (`orangescrum-cloud-native/`)
+2. **Native Deployment** (`dist-native/`)
    - Direct system execution without containers
    - Better performance, lower overhead
    - Requires manual service configuration
    - Ideal for production servers with existing infrastructure
-   - See [orangescrum-cloud-native/README.md](orangescrum-cloud-native/README.md)
+   - Built from `orangescrum-cloud-native/`
 
 ### Local Development
 
 **Docker:**
-- Use `orangescrum-cloud-docker/docker-compose.yaml`
+- Use `dist-docker/docker-compose.yaml`
 - Includes local PostgreSQL, Redis, MinIO, and MailHog
 - Exposes port 8080 by default
 
 **Native:**
-- Use `orangescrum-cloud-native/run-native.sh`
+- Use `dist-native/run.sh`
 - Requires external PostgreSQL, Redis (optional), and S3 (optional)
 - Exposes port 8080 by default
 
@@ -207,9 +253,9 @@ The FrankenPHP binary can be deployed to:
 - **Serverless**: Cloud Run, Lambda (with container support)
 - **VPS/Bare Metal**: Any Linux server (native deployment)
 
-[DOCS] **Production Guides:**
-- Docker: [orangescrum-cloud-docker/docs/PRODUCTION_DEPLOYMENT_DOCKER.md](orangescrum-cloud-docker/docs/PRODUCTION_DEPLOYMENT_DOCKER.md)
-- Native: [orangescrum-cloud-native/docs/PRODUCTION_DEPLOYMENT_NATIVE.md](orangescrum-cloud-native/docs/PRODUCTION_DEPLOYMENT_NATIVE.md)
+**Production Guides:**
+- Docker: [orangescrum-cloud-common/docs/PRODUCTION_DEPLOYMENT_DOCKER.md](orangescrum-cloud-common/docs/PRODUCTION_DEPLOYMENT_DOCKER.md)
+- Native: [orangescrum-cloud-common/docs/PRODUCTION_DEPLOYMENT_NATIVE.md](orangescrum-cloud-common/docs/PRODUCTION_DEPLOYMENT_NATIVE.md)
 
 ### Environment Variables
 
@@ -225,39 +271,70 @@ Optional:
 - `EMAIL_API_KEY`, `FROM_EMAIL` (SendGrid email)
 - `FULL_BASE_URL` (application URL)
 
+See `.env.example` files in deployment packages for complete lists.
+
 ---
 
-## File Structure
+## How The Build System Works
+
+### Build Flow
+
+```
+1. Source Code (../apps/orangescrum-v4)
+   ↓ git archive
+2. Extract → builder/package/
+   ↓ docker build (base-build.Dockerfile)
+3. FrankenPHP Base Image (cached) ~30 min first time
+   ↓ docker build (app-embed.Dockerfile)
+4. FrankenPHP Binary → orangescrum-cloud-common/orangescrum-app/osv4-prod ~2 min
+   ↓ run build scripts
+5. Deployment Packages:
+   - orangescrum-cloud-docker/build.sh → dist-docker/
+   - orangescrum-cloud-native/build.sh → dist-native/
+```
+
+### Directory Relationships
 
 ```
 cloud-builder/
-├── build.py                        # Main build script
-├── builder/
-│   ├── base-build.Dockerfile       # FrankenPHP base image
-│   ├── app-embed.Dockerfile        # App embedding
-│   └── docker-compose.yaml         # Builder services
-├── orangescrum-cloud-docker/       # Docker deployment
-│   ├── docker-compose.yaml         # Application orchestration
-│   ├── docker-compose.services.yml # Infrastructure services
-│   ├── Dockerfile                  # Production container
-│   ├── entrypoint.sh               # Container startup
-│   ├── .env.example                # Environment template
-│   ├── config/                     # Configuration files
-│   ├── docs/                       # Docker-specific docs
-│   └── orangescrum-app/
-│       └── osv4-prod               # Static binary (generated)
-├── orangescrum-cloud-native/       # Native deployment
-│   ├── run-native.sh               # Native runner script
-│   ├── run.sh                      # Alternative runner
-│   ├── .env.example                # Environment template
-│   ├── validate-env.sh             # Configuration validator
-│   ├── config/                     # Configuration files
-│   ├── docs/                       # Native-specific docs
-│   └── orangescrum-app/
-│       └── osv4-prod               # Static binary (generated)
-└── orangescrum-cloud/              # Legacy (deprecated)
-    └── ...                         # Use -docker or -native instead
+│
+├── orangescrum-cloud/              ← Source scripts (build-docker.sh, build-native.sh)
+│
+├── orangescrum-cloud-common/       ← Shared files + binary
+│   └── orangescrum-app/osv4-prod  ← Built by build.py
+│
+├── orangescrum-cloud-docker/       ← Docker source (Dockerfile, compose files)
+│   └── build.sh                    ← Assembles dist-docker/ package
+│
+├── orangescrum-cloud-native/       ← Native source (run scripts)
+│   └── build.sh                    ← Assembles dist-native/ package
+│
+├── dist-docker/                    ← Ready-to-deploy Docker package
+│   └── orangescrum-app/osv4-prod  ← Copied from common
+│
+└── dist-native/                    ← Ready-to-deploy Native package
+    └── orangescrum-app/osv4-prod  ← Copied from common
 ```
+
+### Making Changes
+
+**To update shared files (config, docs, helpers):**
+1. Edit in `orangescrum-cloud-common/`
+2. Run `python3 build.py --skip-archive --skip-base` to rebuild packages
+
+**To update Docker-specific files:**
+1. Edit in `orangescrum-cloud-docker/`
+2. Run `cd orangescrum-cloud-docker && ./build.sh`
+
+**To update Native-specific files:**
+1. Edit in `orangescrum-cloud-native/`
+2. Run `cd orangescrum-cloud-native && ./build.sh`
+
+---
+
+## File Structure Reference
+
+See [docs/REPOSITORY_STRUCTURE.md](docs/REPOSITORY_STRUCTURE.md) for detailed structure documentation.
 
 ---
 
@@ -284,14 +361,14 @@ This is normal for a standalone binary.
 
 ### Database Connection Fails
 
-Check your `.env` file settings:
+Check your deployment package `.env` file:
 
 ```bash
-cd orangescrum-cloud
+cd dist-docker  # or dist-native
 cat .env | grep DB_
 ```
 
-Ensure PostgreSQL is accessible from the container (use `host.docker.internal` for localhost).
+Ensure PostgreSQL is accessible (use `host.docker.internal` for Docker on Mac/Windows).
 
 ### Port Already in Use
 
@@ -301,12 +378,7 @@ Change the port in `.env`:
 APP_PORT=8081
 ```
 
-Then restart:
-
-```bash
-docker compose down
-docker compose up -d
-```
+Then restart the service.
 
 ---
 
@@ -323,32 +395,23 @@ python3 build.py
 
 ### Configuration Overrides
 
-Place custom PHP config files in `orangescrum-cloud/config/`:
+Place custom PHP config files in `orangescrum-cloud-common/config/`:
 
 - `cache_redis.example.php` - Redis cache configuration
 - `queue.example.php` - Queue configuration  
 - `storage.example.php` - S3 storage configuration
 - `sendgrid.example.php` - Email configuration
 
-These will be copied to the package during build.
-
-### Multi-Stage Production Build
-
-The `orangescrum-cloud/Dockerfile` uses the generated binary:
-
-```dockerfile
-FROM alpine:latest
-COPY orangescrum-app/orangescrum-cloud /usr/local/bin/
-ENTRYPOINT ["/usr/local/bin/orangescrum-cloud"]
-```
+These will be copied to deployment packages during build.
 
 ---
 
-## Related Documentation
+## Documentation
 
-- Main Project: `../README.md` - Multi-application Docker setup
-- FrankenPHP Docs: <https://frankenphp.dev/>
-- OrangeScrum V4: `../apps/orangescrum-v4/`
+- [DEPLOYMENT_SEPARATION.md](DEPLOYMENT_SEPARATION.md) - Architecture & deployment separation explained
+- [docs/REPOSITORY_STRUCTURE.md](docs/REPOSITORY_STRUCTURE.md) - Detailed directory structure
+- [docs/QUICK_REFERENCE.md](docs/QUICK_REFERENCE.md) - Command quick reference
+- [docs/README.md](docs/README.md) - Documentation index
 
 ---
 
@@ -356,549 +419,19 @@ ENTRYPOINT ["/usr/local/bin/orangescrum-cloud"]
 
 For issues:
 
-1. Check `docker compose logs orangescrum-app`
+1. Check logs: `cd dist-docker && docker compose logs orangescrum-app`
 2. Verify database connectivity
-3. Review `.env` configuration
+3. Review `.env` configuration in deployment package
 4. Ensure all required environment variables are set
 
-```
-
-### OrangeScrum V4 (.env in os-v4/)
-
-```bash
-DB_HOST=postgres16
-DB_NAME=orangescrum
-DB_USERNAME=orangescrum
-DB_PASSWORD=orangescrumpass
-REDIS_HOST=redis-durango
-QUEUE_URL=redis://redis-durango:6379/0
-```
-
-### OrangeScrum V2 (.env in os-v2/)
-
-```bash
-DB_HOST=mysql
-DB_NAME=orangescrum
-DB_USERNAME=osuser
-DB_PASSWORD=ospassword
-MEMCACHED_HOST=memcached-orangescrum:11211
-
-```txt
-╔══════════════════════════════════════════════════╗
-║     OrangeScrum Full Stack Deployment Menu       ║
-╚══════════════════════════════════════════════════╝
-
-1. Deploy full stack
-2. Stop all services
-3. Start all services
-4. Restart all services
-5. Manage individual service
-6. View service logs
-7. Check service status
-8. Run pre-deployment checks
-9. Exit
-
-Select an option (1-9):
-```
-
-**Most common tasks:**
-
-- First time? → Choose option **1** (Deploy full stack)
-- Need to check status? → Choose option **7**
-- Something wrong? → Choose option **6** to view logs
-- Daily startup? → Choose option **3** (Start all services)
-- End of day? → Choose option **2** (Stop all services)
-
 ---
 
-## Common Operations
+## Related Projects
 
-### Check Service Status
+- Main Workspace: `../README.md` - Multi-application Docker setup
+- OrangeScrum V4: `../apps/orangescrum-v4/` - Source application
+- FrankenPHP: <https://frankenphp.dev/> - PHP application server
 
-```bash
-./deploy.sh --status
-```
-
-**Example output:**
-
-```txt
-┌─────────────────────────┬─────────┬──────────┬────────────────┐
-│ Container               │ Status  │ Health   │ Ports          │
-├─────────────────────────┼─────────┼──────────┼────────────────┤
-│ orangescrum-app         │ running │ healthy  │ 80->80         │
-│ orangescrum-postgresdb  │ running │ healthy  │ 5433->5432     │
-│ orangescrum-storage     │ running │ healthy  │ 9000,9090      │
-│ orangescrum-reports     │ running │ healthy  │ 8088->8088     │
-│ orangescrum-os-optimize │ running │ healthy  │ 9091->9091     │
-└─────────────────────────┴─────────┴──────────┴────────────────┘
-```
-
-### View Logs (Debug Problems)
-
-```bash
-# View logs for a specific service
-./deploy.sh --logs orangescrum-app
-
-# Follow logs in real-time (press Ctrl+C to stop)
-./deploy.sh --logs orangescrum-app --follow
-```
-
-**Tip:** If something isn't working, check the logs first!
-
-### Stop/Start/Restart Services
-
-```bash
-# Stop a specific service
-./deploy.sh --stop-service orangescrum-app
-
-# Start a specific service
-./deploy.sh --start-service orangescrum-app
-
-# Restart a specific service
-./deploy.sh --restart-service orangescrum-app
-```
-
-### Stop Everything
-
-```bash
-# Stop all services
-./deploy.sh --interactive
-# Then choose option 2: Stop all services
-
-# Or use command directly
-docker compose -f orangescrum-cloud/docker-compose.yaml down
-```
-
----
-
-## Troubleshooting
-
-### Problem: "Docker daemon is not accessible"
-
-**What it means:** Docker isn't running.
-
-**Fix:**
-
-```bash
-# Start Docker
-sudo systemctl start docker
-
-# Check status
-sudo systemctl status docker
-
-# Run checks again
-./deploy.sh --check
-```
-
----
-
-### Problem: "Virtual environment not found"
-
-**What it means:** You skipped the venv setup or deactivated it.
-
-**Fix:**
-
-```bash
-# Create venv (if not exists)
-python3 -m venv ../.venv
-
-# Activate it
-source ../.venv/bin/activate
-
-# Install docker package
-pip install docker
-
-# Verify
-python3 -c "import docker; print('Docker module installed')"
-```
-
----
-
-### Problem: "Port already in use"
-
-**What it means:** Another service is using the same port.
-
-**Example error:**
-
-```txt
-Error: Bind for 0.0.0.0:5432 failed: port is already allocated
-```
-
-**Good News:** The deploy script now automatically detects and handles port conflicts!
-
-**Automatic Port Resolution (Default Behavior):**
-
-The script will:
-
-1. Check if ports are available before deployment
-2. Automatically find alternative ports if blocked
-3. Show you what ports are being used
-
-```bash
-# Deploy with automatic port resolution (default)
-./deploy.sh
-
-# Output will show:
-# [WARNING]  Some ports are already in use:
-#    - APP_PORT: 8080
-# Finding alternative ports...
-#    [OK] APP_PORT: 8080 → 8081
-```
-
-**Manual Port Configuration:**
-
-You can specify custom ports in three ways:
-
-#### Option 1: Use .env file (Recommended)
-
-```bash
-cd orangescrum-cloud
-cp .env.example .env
-# Edit .env and set your custom ports:
-# APP_PORT=3000
-# PG_PORT=5434
-# MINIO_API_PORT=9001
-# etc...
-
-./deploy.sh
-```
-
-#### Option 2: Command Line Arguments
-
-```bash
-./deploy.sh --app-port 3000 --pg-port 5434 --minio-port 9001 \
-  --minio-console-port 9092 --reports-port 8089 --os-optimize-port 9093
-```
-
-#### Option 3: Let Script Auto-Resolve (Default)
-
-Just run deployment - script finds available ports automatically!
-
-**Disable Automatic Port Resolution:**
-
-If you want the script to fail when ports are blocked (strict mode):
-
-```bash
-./deploy.sh --no-auto-port
-```
-
-**Check What's Using a Port:**
-
-```bash
-# Check what's using the port
-sudo lsof -i :8080
-
-# Or use netstat
-netstat -tuln | grep 8080
-
-# Kill process
-sudo kill -9 <PID>
-```
-
-**Default Port Assignments:**
-
-| Service | Default Port | Access URL |
-|---------|-------------|------------|
-| OrangeScrum App | 8080 | <http://localhost:8080> |
-
----
-
-### Problem: Services won't start
-
-**Symptoms:** Container status shows "exited" or "restarting"
-
-**Fix:**
-
-```bash
-# Step 1: Check logs to see the error
-./deploy.sh --logs orangescrum-app --follow
-
-# Step 2: Common issues and fixes:
-
-# If database connection error:
-./deploy.sh --restart-service orangescrum-postgresdb
-sleep 10
-./deploy.sh --restart-service orangescrum-app
-
-# If permission error:
-docker exec orangescrum-app chown -R root:root /data
-docker exec orangescrum-app chmod -R 755 /data
-
-# If unknown error, try full restart:
-./deploy.sh --interactive
-# Choose option 4: Restart all services
-```
-
----
-
-### Problem: Pre-deployment checks fail
-
-**What it means:** Something required for deployment is missing.
-
-**Fix based on what's missing:**
-
-```bash
-# If "Docker daemon not running":
-sudo systemctl start docker
-
-# If "OS-Optimize image not found":
-cd ../os-optimize
-docker build -t orangescrum/os-optimize:latest .
-
-# If "Repository not found":
-cd ..
-git clone <repository-url>
-
-# If "FrankenPHP binary not found":
-# Contact your team lead - binary needs to be built first
-```
-
----
-
-### Problem: "Can't access <http://localhost>"
-
-**Symptoms:** Browser shows "Connection refused" or "This site can't be reached"
-
-**Fix:**
-
-```bash
-# Step 1: Check if app is running
-./deploy.sh --status
-
-# Step 2: If app is running but can't access:
-# The app might be bound to 192.168.2.132 only
-
-# Option A: Access via IP
-curl http://192.168.2.132
-
-# Option B: Change binding in orangescrum-cloud/.env
-# Set: APP_BIND_IP=127.0.0.1 (or 0.0.0.0)
-
-# Step 3: Restart
-./deploy.sh --restart-service orangescrum-app
-```
-
----
-
-### Problem: Need to start fresh
-
-**When to use:** Everything is broken, want to reset completely.
-
-**Nuclear option (deletes all data):**
-
-```bash
-# Stop and remove everything including volumes
-docker compose -f orangescrum-cloud/docker-compose.yaml down -v
-
-# Start fresh deployment
-./deploy.sh
-```
-
-**WARNING:** This deletes all data, uploads, and databases!
-
----
-
-## Installation Guide
-
-### Install Docker (Ubuntu/Debian)
-
-```bash
-# Remove old versions
-sudo apt-get remove docker docker-engine docker.io containerd runc
-
-# Install Docker
-curl -fsSL https://get.docker.com | sh
-
-# Add your user to docker group (avoid sudo)
-sudo usermod -aG docker $USER
-
-# Log out and back in, then verify
-docker --version
-docker compose version
-```
-
-### Install Python & Git
-
-```bash
-# Install required packages
-sudo apt-get update
-sudo apt-get install -y python3 python3-pip python3-venv git
-
-# Verify
-python3 --version
-git --version
-```
-
----
-
-## Available Services
-
-| Service Name | Purpose | Default Port | Access |
-|-------------|---------|--------------|--------|
-| orangescrum-app | Main application | 8080 | <http://localhost:8080> |
-
----
-
-## Daily Workflow
-
-### Morning (Start Services)
-
-```bash
-cd durango-builder
-source ../.venv/bin/activate
-./deploy.sh --interactive
-# Choose option 3: Start all services
-```
-
-### During Work (Check Status)
-
-```bash
-# Quick status check
-./deploy.sh --status
-
-# Watch logs while developing
-./deploy.sh --logs orangescrum-app --follow
-```
-
-### Evening (Stop Services)
-
-```bash
-./deploy.sh --interactive
-# Choose option 2: Stop all services
-```
-
----
-
-## Advanced Usage
-
-### Custom Port Configuration
-
-```bash
-# Use custom ports
-export APP_PORT=8080
-export PG_PORT=5432
-export MINIO_PORT=9000
-export REPORTS_PORT=8088
-export OS_OPTIMIZE_PORT=9091
-
-./deploy.sh
-```
-
-### Skip Building Components
-
-```bash
-# Skip building OS-Optimize (use existing image)
-./deploy.sh --skip-os-optimize
-
-# Skip pre-deployment checks (not recommended)
-./deploy.sh --skip-checks
-```
-
-### Build Without Deploying
-
-```bash
-# Only build images, don't start services
-./deploy.sh --build-only
-```
-
----
-
-## Getting Help
-
-### Show All Options
-
-```bash
-./deploy.sh --help
-```
-
-### Check What's Available
-
-```bash
-# List all running containers
-docker ps
-
-# List all containers (including stopped)
-docker ps -a
-
-# List all volumes
-docker volume ls
-
-# List all networks
-docker network ls
-```
-
-### Ask for Help
-
-When asking for help, provide:
-
-1. **Output of checks:**
-
-   ```bash
-   ./deploy.sh --check
-   ```
-
-2. **Service status:**
-
-   ```bash
-   ./deploy.sh --status
-   ```
-
-3. **Relevant logs:**
-
-   ```bash
-   ./deploy.sh --logs <service-name> > error.log
-   ```
-
----
-
-## Additional Documentation
-
-For advanced topics, see the `docs/` folder:
-
-- **[Technical Architecture](docs/TECHNICAL_ARCHITECTURE.md)** - Deep dive into FrankenPHP, build system, and persistence
-- **[Production Deployment](docs/PRODUCTION_DEPLOYMENT.md)** - Production server setup guide
-- **[Database Testing](docs/DATABASE_TESTING.md)** - Database migration and testing
-- **[Volume Safety](docs/VOLUME_SAFETY.md)** - Data persistence best practices
-- **[Quick Reference](docs/QUICK_REFERENCE.md)** - Command cheat sheet
-
----
-
-## Learning Resources
-
-**New to Docker?**
-
-- [Docker Getting Started](https://docs.docker.com/get-started/)
-- [Docker Compose Tutorial](https://docs.docker.com/compose/gettingstarted/)
-
-**New to Python?**
-
-- [Python Virtual Environments Guide](https://docs.python.org/3/tutorial/venv.html)
-
-**Understanding the Stack:**
-
-- Read [Technical Architecture](docs/TECHNICAL_ARCHITECTURE.md) to learn how everything works
-
----
-
-## Success Checklist
-
-After deployment, verify:
-
-- [ ] All services show "running" in `./deploy.sh --status`
-- [ ] All services show "healthy" in status output
-- [ ] Can access OrangeScrum at <http://192.168.2.132> or <http://localhost>
-- [ ] Can access MinIO Console at <http://localhost:9090>
-- [ ] No errors in logs: `./deploy.sh --logs orangescrum-app`
-
-**If all checked, you're ready to go!**
-
----
-
-## License
-
-Enterprise Edition - Commercial License
-
----
 
 ## Quick Reference
 

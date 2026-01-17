@@ -30,7 +30,7 @@ environment:
 **Native Mode:**
 
 ```bash
-# run-native.sh loads .env
+# run.sh loads .env
 source .env
 export DB_HOST DB_PORT DB_USERNAME ...
 ./orangescrum-app/osv4-prod php-server --listen :8080
@@ -159,7 +159,7 @@ def _copy_config_overrides():
 #### Runtime (Container/Native)
 
 ```bash
-# entrypoint.sh or run-native.sh
+# entrypoint.sh or run.sh
 # After FrankenPHP extracts app to /tmp/frankenphp_*
 
 cp $EXTRACTED_APP/config/app_local.example.php \

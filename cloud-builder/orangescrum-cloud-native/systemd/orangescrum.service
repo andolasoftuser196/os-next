@@ -1,0 +1,42 @@
+[Unit]
+Description=OrangeScrum FrankenPHP Application Server
+Documentation=https://orangescrum.com/docs
+After=network.target postgresql.service redis.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=orangescrum
+Group=orangescrum
+WorkingDirectory=/opt/application
+
+# Load environment variables from .env file
+EnvironmentFile=/opt/application/.env
+
+# Start the FrankenPHP binary in server mode
+ExecStart=/opt/application/bin/orangescrum php-server -r webroot -l ${BIND_IP:-127.0.0.1}:${PORT:-8080}
+
+# Restart policy
+Restart=on-failure
+RestartSec=10s
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/orangescrum/logs /var/log/orangescrum
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+MemoryMax=2G
+TasksMax=512
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=orangescrum
+
+[Install]
+WantedBy=multi-user.target

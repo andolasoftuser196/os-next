@@ -96,7 +96,7 @@ Native:
   cd orangescrum-native-*
   cp .env.example .env && nano .env
   ./validate-env.sh
-  ./run-native.sh
+  ./run.sh
 
 EOF
 

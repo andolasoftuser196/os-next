@@ -39,9 +39,11 @@ ORANGESCRUM_COMMON_DIR = ROOT / "orangescrum-cloud-common"
 ORANGESCRUM_DOCKER_SOURCE = ROOT / "orangescrum-cloud-docker"
 ORANGESCRUM_NATIVE_SOURCE = ROOT / "orangescrum-cloud-native"
 
-# Build output directories
-DIST_DOCKER_DIR = ROOT / "dist-docker"
-DIST_NATIVE_DIR = ROOT / "dist-native"
+# Build output directories - will be set with timestamp in main()
+DIST_BASE_DIR = None
+DIST_DOCKER_DIR = None
+DIST_NATIVE_DIR = None
+TIMESTAMP = None
 
 # Legacy directory (deprecated - for backwards compatibility with old orangescrum-cloud)
 ORANGESCRUM_EE_DIR = ROOT / "orangescrum-cloud"
@@ -50,19 +52,9 @@ ORANGESCRUM_EE_DIR = ROOT / "orangescrum-cloud"
 COMMON_BINARY = ORANGESCRUM_COMMON_DIR / "orangescrum-app/osv4-prod"
 COMMON_CONFIG_OVERRIDES_DIR = ORANGESCRUM_COMMON_DIR / "config"
 
-# Docker deployment paths (for running after build)
-DOCKER_APP_COMPOSE_FILE = DIST_DOCKER_DIR / "docker-compose.yaml"
-DOCKER_ENV_FILE_DEFAULT = DIST_DOCKER_DIR / ".env"
-DOCKER_ENV_FILE_EXAMPLE = DIST_DOCKER_DIR / ".env.example"
-
 # Use common paths for config overrides and binary during build
 CONFIG_OVERRIDES_DIR = COMMON_CONFIG_OVERRIDES_DIR
 ORANGESCRUM_EE_BINARY = COMMON_BINARY
-
-# Deployment defaults (for --deploy flag)
-APP_COMPOSE_FILE = DOCKER_APP_COMPOSE_FILE
-APP_ENV_FILE_DEFAULT = DOCKER_ENV_FILE_DEFAULT
-APP_ENV_FILE_EXAMPLE = DOCKER_ENV_FILE_EXAMPLE
 
 FRANKENPHP_BASE_IMAGE = os.environ.get(
     "FRANKENPHP_BASE_IMAGE", "orangescrum-cloud-base:latest"
@@ -390,11 +382,20 @@ def _build_deployment_folders():
     """Build deployment folders using new separated build scripts"""
     print("Building deployment folders from separated sources...")
     
+    # Create base dist directory
+    DIST_BASE_DIR.mkdir(parents=True, exist_ok=True)
+    
+    # Set environment variables for build scripts
+    build_env = os.environ.copy()
+    build_env["DIST_DOCKER_DIR"] = str(DIST_DOCKER_DIR)
+    build_env["DIST_NATIVE_DIR"] = str(DIST_NATIVE_DIR)
+    build_env["BUILD_TIMESTAMP"] = TIMESTAMP
+    
     # Run Docker build script
     docker_build_script = ORANGESCRUM_DOCKER_SOURCE / "build.sh"
     if docker_build_script.exists():
-        print("\n🐳 Building Docker deployment...")
-        _run_cmd(["bash", str(docker_build_script)], cwd=ORANGESCRUM_DOCKER_SOURCE)
+        print("\nBuilding Docker deployment...")
+        _run_cmd(["bash", str(docker_build_script)], cwd=ORANGESCRUM_DOCKER_SOURCE, env=build_env)
         print("  ✓ Docker deployment built → dist-docker/")
     else:
         print(f"⚠️  Warning: {docker_build_script} not found")
@@ -402,15 +403,16 @@ def _build_deployment_folders():
     # Run Native build script
     native_build_script = ORANGESCRUM_NATIVE_SOURCE / "build.sh"
     if native_build_script.exists():
-        print("\n🖥️  Building Native deployment...")
-        _run_cmd(["bash", str(native_build_script)], cwd=ORANGESCRUM_NATIVE_SOURCE)
+        print("\nBuilding Native deployment...")
+        _run_cmd(["bash", str(native_build_script)], cwd=ORANGESCRUM_NATIVE_SOURCE, env=build_env)
         print("  ✓ Native deployment built → dist-native/")
     else:
         print(f"⚠️  Warning: {native_build_script} not found")
     
     print("\n✓ Deployment folders built successfully")
-    print(f"  Docker:  {DIST_DOCKER_DIR}")
-    print(f"  Native:  {DIST_NATIVE_DIR}")
+    print(f"  Location: {DIST_BASE_DIR}")
+    print(f"    - Docker:  {DIST_DOCKER_DIR.name}")
+    print(f"    - Native:  {DIST_NATIVE_DIR.name}")
 
 
 def check_prerequisites() -> bool:
@@ -441,17 +443,14 @@ def check_prerequisites() -> bool:
         print(f"✗ Builder compose file not found at {BUILDER_COMPOSE_FILE}")
         ok = False
 
-    if APP_COMPOSE_FILE.exists():
-        print(f"✓ App compose file found at {APP_COMPOSE_FILE}")
-    else:
-        print(f"✗ App compose file not found at {APP_COMPOSE_FILE}")
-        ok = False
+    # Note: APP_COMPOSE_FILE check removed since it's created during build
 
     return ok
 
 
 def _ensure_app_env():
     """Ensure .env file exists for orangescrum-cloud deployment"""
+    global APP_ENV_FILE_DEFAULT, APP_ENV_FILE_EXAMPLE
     if not APP_ENV_FILE_DEFAULT.exists():
         print("Creating .env file from example...")
         if APP_ENV_FILE_EXAMPLE.exists():
@@ -466,6 +465,7 @@ def _ensure_app_env():
 
 def _deploy_orangescrum_app(docker_client: docker.DockerClient, env_file: Path, env_overrides: dict[str, str]):
     """Build and start the OrangeScrum app service"""
+    global APP_COMPOSE_FILE, DIST_DOCKER_DIR
     print("Deploying OrangeScrum V4 application...")
     
     env = os.environ.copy()
@@ -570,9 +570,16 @@ def main():
     print("=" * 60)
     print()
     
+    # Initialize timestamped dist paths
+    global TIMESTAMP, DIST_BASE_DIR, DIST_DOCKER_DIR, DIST_NATIVE_DIR
+    TIMESTAMP = time.strftime("%Y%m%d_%H%M%S")
+    DIST_BASE_DIR = ROOT / "dist" / TIMESTAMP
+    DIST_DOCKER_DIR = DIST_BASE_DIR / "dist-docker"
+    DIST_NATIVE_DIR = DIST_BASE_DIR / "dist-native"
+    
     # Run pre-flight checks
     if not check_prerequisites():
-        print("\n❌ Pre-flight checks failed. Please fix the issues above.")
+        print("\nPre-flight checks failed. Please fix the issues above.")
         return 1
     
     print()
@@ -584,6 +591,12 @@ def main():
         return 1
     
     docker_client = docker.from_env()
+    
+    # Initialize deployment file paths after dist directories are set
+    global APP_COMPOSE_FILE, APP_ENV_FILE_DEFAULT, APP_ENV_FILE_EXAMPLE
+    APP_COMPOSE_FILE = DIST_DOCKER_DIR / "docker-compose.yaml"
+    APP_ENV_FILE_DEFAULT = DIST_DOCKER_DIR / ".env"
+    APP_ENV_FILE_EXAMPLE = DIST_DOCKER_DIR / ".env.example"
     
     # Resolve environment file
     env_file = _resolve_env_file(args.env_file)
@@ -670,47 +683,49 @@ def main():
             _deploy_orangescrum_app(docker_client, env_file, env_overrides)
             
             # Wait for health check
-)
-            _ensure_app_env()
-            _deploy_orangescrum_app(docker_client, env_file, env_overrides)
-            
-            # Wait for health check
             _wait_for_app_healthy(docker_client)
         
         print("\n" + "=" * 70)
-        print("🎉 Build Complete!")
+        print("Build Complete!")
         print("=" * 70)
         print(f"\n✓ FrankenPHP binary: {COMMON_BINARY}")
-        print(f"\n✓ Deployment packages built:")
-        print(f"  🐳 Docker:  {DIST_DOCKER_DIR}")
-        print(f"  🖥️  Native: {DIST_NATIVE_DIR}")
+        print(f"\n✓ Deployment packages: {DIST_BASE_DIR}")
+        print(f"  - Docker:  {DIST_DOCKER_DIR.name}/")
+        print(f"  - Native:  {DIST_NATIVE_DIR.name}/")
+        print(f"\nTo deploy, copy the entire folder to production:")
+        print(f"  scp -r {DIST_BASE_DIR} user@server:/opt/orangescrum/")
+        print(f"  cd /opt/orangescrum/{TIMESTAMP}/dist-docker  # or dist-native")
+        print(f"  cp .env.example .env && nano .env")
+        print(f"  docker compose up -d  # or ./run.sh")
         
         if not args.skip_deploy:
             app_port = env_overrides.get("APP_PORT", "8080")
-            print(f"\n🎉 OrangeScrum V4 is now running (Docker deployment)!")
+            print(f"\nOrangeScrum V4 is now running (Docker deployment)!")
             print(f"Access at: http://localhost:{app_port}")
             print("\nUseful commands:")
             print(f"  cd {DIST_DOCKER_DIR} && docker compose ps      # Check status")
             print(f"  cd {DIST_DOCKER_DIR} && docker compose logs -f # View logs")
         else:
             print("\nTo deploy the application:")
-            print("\n🐳 Docker deployment:")
+            print("\nDocker deployment:")
             print(f"  cd {DIST_DOCKER_DIR}")
             print("  cp .env.example .env")
             print("  nano .env  # Edit configuration")
             print("  docker-compose -f docker-compose.services.yml up -d  # Infrastructure (optional)")
             print("  docker compose up -d  # Start application")
-            print("\n🖥️  Native deployment:")
+            print("\nNative deployment:")
             print(f"  cd {DIST_NATIVE_DIR}")
             print("  cp .env.example .env")
             print("  nano .env  # Edit configuration")
             print("  ./helpers/validate-env.sh  # Validate config")
-            print("  ./run-native.sh  # Start application")
+            print("  ./run.sh  # Start application")
+            print(f"\nOr copy entire build to production:")
+            print(f"  scp -r {DIST_BASE_DIR} user@server:/opt/orangescrum/")
         
         print()
         
     except Exception as e:
-        print(f"\n❌ ERROR: {e}")
+        print(f"\nERROR: {e}")
         return 1
     finally:
         docker_client.close()

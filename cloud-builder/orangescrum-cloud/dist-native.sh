@@ -56,10 +56,6 @@ if [ "$BINARY_NAME" != "$SOURCE_BINARY_NAME" ]; then
     mv "$PACKAGE_DIR/orangescrum-app/$SOURCE_BINARY_NAME" "$PACKAGE_DIR/orangescrum-app/$BINARY_NAME"
     chmod +x "$PACKAGE_DIR/orangescrum-app/$BINARY_NAME"
     
-    # Update run scripts to use new binary name
-    sed -i "s|orangescrum-app/$SOURCE_BINARY_NAME|orangescrum-app/$BINARY_NAME|g" "$PACKAGE_DIR/run-native.sh" 2>/dev/null || \
-        sed -i '' "s|orangescrum-app/$SOURCE_BINARY_NAME|orangescrum-app/$BINARY_NAME|g" "$PACKAGE_DIR/run-native.sh"
-    
     sed -i "s|orangescrum-app/$SOURCE_BINARY_NAME|orangescrum-app/$BINARY_NAME|g" "$PACKAGE_DIR/run.sh" 2>/dev/null || \
         sed -i '' "s|orangescrum-app/$SOURCE_BINARY_NAME|orangescrum-app/$BINARY_NAME|g" "$PACKAGE_DIR/run.sh"
 else
@@ -104,10 +100,10 @@ nano .env
 
 ```bash
 # Development (foreground)
-./run-native.sh
+./run.sh
 
 # Production (background daemon)
-DAEMON=true ./run-native.sh &
+DAEMON=true ./run.sh &
 ```
 
 ### 5. Access Application
@@ -175,7 +171,7 @@ See `docs/PRODUCTION_DEPLOYMENT_NATIVE.md` for:
 ## Package Contents
 
 - \`orangescrum-app/$BINARY_NAME\` - FrankenPHP static binary (372MB)
-- \`run-native.sh\` - Application runner
+- \`run.sh\` - Application runner
 - \`config/\` - Configuration templates
 - \`docs/\` - Full documentation
 - Helper scripts: \`cake.sh\`, \`queue-worker.sh\`, \`validate-env.sh\`
@@ -288,7 +284,7 @@ Deployment
 1. Extract: tar -xzf ${PACKAGE_NAME}.tar.gz
 2. Configure: cd ${PACKAGE_NAME} && cp .env.example .env && nano .env
 3. Validate: ./validate-env.sh
-4. Run: ./run-native.sh
+4. Run: ./run.sh
 
 Production Installation
 ----------------------

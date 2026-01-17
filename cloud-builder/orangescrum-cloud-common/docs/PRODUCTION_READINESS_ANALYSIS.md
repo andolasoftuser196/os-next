@@ -34,7 +34,7 @@ V2_ROUTING_API_KEY=your-secure-api-key-here-change-this
 - Add stronger warnings in comments
 
 ### 2. Missing Production Environment Detection
-**File:** `entrypoint.sh`, `run-native.sh`  
+**File:** `entrypoint.sh`, `run.sh`  
 **Issue:** No validation that required production variables are set  
 **Risk:** Application may start with insecure defaults  
 **Fix Required:**
@@ -167,7 +167,7 @@ healthcheck:
 ## Minor Issues (Optional Enhancement)
 
 ### 13. Inconsistent Script Names
-**Issue:** `run.sh` and `run-native.sh` have identical functionality  
+**Issue:** [RESOLVED] `run.sh` and `run-native.sh` duplication eliminated - now using single `run.sh`  
 **Fix:** Consolidate or clarify naming
 
 ### 14. Missing Performance Tuning Docs

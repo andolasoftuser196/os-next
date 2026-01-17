@@ -6,7 +6,8 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+# Change to parent directory where .env file should be
+cd "$SCRIPT_DIR/.."
 
 # Colors
 RED='\033[0;31m'

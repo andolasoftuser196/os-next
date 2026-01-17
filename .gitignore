@@ -78,3 +78,4 @@ temp/
 *.tar.gz
 *.rar
 os-v2/*.sql
+cloud-builder/orangescrum-cloud/orangescrum-app/osv4-prod

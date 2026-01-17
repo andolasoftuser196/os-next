@@ -9,7 +9,7 @@ PACKAGE_NAME="orangescrum-frankenphp"
 VERSION="${VERSION:-v26.1.1}"
 PACKAGE_DIR="${PACKAGE_NAME}-${VERSION}"
 OUTPUT_FILE="${PACKAGE_NAME}-${VERSION}.tar.gz"
-BINARY="./orangescrum-app/osv4-prod"
+BINARY="./bin/orangescrum"
 
 echo "=========================================="
 echo "OrangeScrum FrankenPHP Package Builder"
@@ -20,7 +20,7 @@ echo ""
 # Check binary
 if [ ! -f "$BINARY" ]; then
     echo "[ERROR] Binary not found: $BINARY"
-    echo "   Run: cd ../durango-builder && python build.py --skip-deploy"
+    echo "   Run: cd ../cloud-builder && python build.py --skip-deploy"
     exit 1
 fi
 
@@ -73,22 +73,23 @@ fi
 
 # Archive
 echo ""
-echo "Creating tarball..."
-tar -czf "$OUTPUT_FILE" "$PACKAGE_DIR"
+echo "Creating tarball in parent directory..."
+cd ..
+tar -czf "$OUTPUT_FILE" -C "$SCRIPT_DIR" "$PACKAGE_DIR"
 
 # Calculate size and checksum
 SIZE=$(du -h "$OUTPUT_FILE" | cut -f1)
 CHECKSUM=$(sha256sum "$OUTPUT_FILE" | cut -d' ' -f1)
 
 # Cleanup
-rm -rf "$PACKAGE_DIR"
+rm -rf "$SCRIPT_DIR/$PACKAGE_DIR"
 
 echo ""
 echo "=========================================="
 echo "[OK] Package created successfully!"
 echo "=========================================="
 echo ""
-echo "Package: $OUTPUT_FILE"
+echo "Location: $(pwd)/$OUTPUT_FILE"
 echo "Size: $SIZE"
 echo "SHA256: $CHECKSUM"
 echo ""
