@@ -1,53 +1,334 @@
-# OrangeScrum FrankenPHP Static Binary Setup
+# OrangeScrum FrankenPHP - Common Files
 
-This directory contains the deployment configuration for OrangeScrum as a FrankenPHP static binary.
+This directory contains the **common source files** for FrankenPHP-based deployments of OrangeScrum.
 
-## ⚠️ Production Deployment
+## 📁 Directory Structure
 
-**Before deploying to production**, please read:
+This folder serves as the **source of truth** for deployment files:
 
-📘 **[Production Readiness Summary](docs/PRODUCTION_READINESS_SUMMARY.md)** - Start here!
+```
+orangescrum-cloud/               # Common source files (this folder)
+├── build-docker.sh              # Build Docker deployment
+├── build-native.sh              # Build Native deployment
+├── config/                      # Shared configuration files
+├── docs/                        # Shared documentation
+├── Dockerfile                   # Docker container definition
+├── docker-compose.yaml          # Docker orchestration
+├── docker-compose.services.yml  # Infrastructure services
+├── entrypoint.sh                # Docker entrypoint
+├── run-native.sh                # Native runner
+├── run.sh                       # Alternative native runner
+├── package.sh                   # Package builder
+├── cake.sh                      # CakePHP CLI helper
+├── queue-worker.sh              # Queue worker
+├── validate-env.sh              # Environment validator
+├── .env.example                 # Environment template
+├── .env.full.example            # Complete env example
+├── CONFIGS.md                   # Configuration reference
+└── orangescrum-app/
+    └── osv4-prod                # FrankenPHP binary (built by build.py)
+```
 
-Choose your deployment mode:
-- 🐳 **[Docker Production Guide](docs/PRODUCTION_DEPLOYMENT_DOCKER.md)** - Recommended for most users
-- 🖥️ **[Native Binary Production Guide](docs/PRODUCTION_DEPLOYMENT_NATIVE.md)** - For direct server deployment
+## 🎯 How It Works
 
-**Required before production:**
-1. Run `./validate-env.sh` to check configuration
-2. Generate secure passwords and secrets
-3. Configure external services (PostgreSQL, Redis, S3)
-4. Set up SSL certificate and reverse proxy
-5. Configure firewall and monitoring
+### Build Process
+
+1. **Build the binary:**
+   ```bash
+   cd /home/ubuntu/workspace/os-next/cloud-builder
+   python build.py
+   ```
+
+2. **Binary is extracted to:**
+   ```
+   orangescrum-cloud/orangescrum-app/osv4-prod
+   ```
+
+3. **Deployment folders are automatically built:**
+   - `build-docker.sh` → Creates `../orangescrum-cloud-docker/`
+   - `build-native.sh` → Creates `../orangescrum-cloud-native/`
+
+### Deployment Folders
+
+The build scripts create deployment-ready folders:
+
+**🐳 orangescrum-cloud-docker/** - Docker containerized deployment
+- Copies: `Dockerfile`, `docker-compose.yaml`, `entrypoint.sh`, `.dockerignore`
+- Copies: Common files (config/, docs/, scripts)
+- Copies: Binary from `orangescrum-app/osv4-prod`
+
+**🖥️ orangescrum-cloud-native/** - Native binary deployment
+- Copies: `run-native.sh`, `run.sh`, `package.sh`, `caddy.sh`
+- Copies: Common files (config/, docs/, scripts)
+- Copies: Binary from `orangescrum-app/osv4-prod`
+
+## 🔧 Manual Build
+
+If you need to rebuild deployment folders manually:
+
+```bash
+# Rebuild Docker deployment
+./build-docker.sh
+
+# Rebuild Native deployment
+./build-native.sh
+
+# Rebuild both
+./build-docker.sh && ./build-native.sh
+```
+
+## 🧹 Clean/Reset Generated Folders
+
+To remove auto-generated deployment folders and start fresh:
+
+```bash
+# Clean (remove) generated folders
+./clean.sh
+
+# Then rebuild
+./build-docker.sh && ./build-native.sh
+
+# Or rebuild everything from scratch
+cd .. && python build.py
+```
+
+**What gets cleaned:**
+- `../orangescrum-cloud-docker/` (entire folder)
+- `../orangescrum-cloud-native/` (entire folder)
+
+**What is preserved:**
+- `orangescrum-cloud/` (source files)
+- `orangescrum-app/osv4-prod` (binary)
+
+## 📦 Create Distribution Packages
+
+To create production-ready distribution packages with timestamps:
+
+```bash
+# Package both Docker and Native deployments
+./dist-all.sh
+
+# Or package individually
+./dist-docker.sh   # Docker package only
+./dist-native.sh   # Native package only
+
+# Customize binary name (default: orangescrum)
+BINARY_NAME=osv4-prod ./dist-native.sh        # Keep production name
+BINARY_NAME=orangescrum ./dist-native.sh      # Use friendly name
+BINARY_NAME=myapp ./dist-native.sh            # Custom name
+```
+
+**Output structure:**
+```
+dist/
+└── 20260117_183045/                                    # Timestamp folder
+    ├── README.txt                                      # Distribution overview
+    ├── orangescrum-docker-v26.1.1-20260117_183045.tar.gz
+    ├── orangescrum-docker-v26.1.1-20260117_183045.manifest.txt
+    ├── orangescrum-native-v26.1.1-20260117_183045.tar.gz
+    └── orangescrum-native-v26.1.1-20260117_183045.manifest.txt
+```
+
+**Package contents:**
+- Complete deployment with binary
+- Configuration templates
+- Documentation
+- Deployment instructions
+- SHA256 checksums
+- Systemd service files (Native)
+
+**Usage:**
+```bash
+# Extract and deploy
+tar -xzf orangescrum-docker-v26.1.1-20260117_183045.tar.gz
+cd orangescrum-docker-v26.1.1-20260117_183045
+cp .env.example .env
+nano .env
+# Then deploy...
+```
+
+## 📝 Making Changes
+
+### Updating Common Files
+
+Edit files in **this folder** (`orangescrum-cloud/`):
+
+1. Make changes to config/, docs/, or scripts
+2. Rebuild deployment folders:
+   ```bash
+   ./build-docker.sh
+   ./build-native.sh
+   ```
+
+### Updating Docker-Specific Files
+
+1. Edit in this folder: `Dockerfile`, `docker-compose.yaml`, `entrypoint.sh`
+2. Rebuild: `./build-docker.sh`
+
+### Updating Native-Specific Files
+
+1. Edit in this folder: `run-native.sh`, `run.sh`, `package.sh`
+2. Rebuild: `./build-native.sh`
+
+## 🚀 Quick Start
+
+### For Docker Deployment
+
+```bash
+# Build everything
+cd /home/ubuntu/workspace/os-next/cloud-builder
+python build.py
+
+# Deploy
+cd orangescrum-cloud-docker
+nano .env
+docker-compose -f docker-compose.services.yml up -d
+docker compose up -d
+```
+
+### For Native Deployment
+
+```bash
+# Build everything
+cd /home/ubuntu/workspace/os-next/cloud-builder
+python build.py
+
+# Deploy
+cd orangescrum-cloud-native
+cp .env.example .env
+nano .env
+./validate-env.sh
+./run-native.sh
+```
+
+## 📚 Documentation
+
+- **Docker:** See `../orangescrum-cloud-docker/README.md`
+- **Native:** See `../orangescrum-cloud-native/README.md`
+- **Build System:** See `../README.md`
+- **Configuration:** See `CONFIGS.md`
+- **Production:** See `docs/PRODUCTION_DEPLOYMENT_*.md`
+
+## ⚠️ Important Notes
+
+- **Don't edit deployment folders directly** - they are auto-generated
+- **Edit source files here** - then rebuild deployment folders
+- **The binary** is built by `python build.py` and extracted here first
+- **Deployment folders** are rebuilt automatically during build process
+
+## 🔄 Workflow Summary
+
+```
+1. Edit source files → orangescrum-cloud/
+                         ├── config/
+                         ├── docs/
+                         ├── Dockerfile
+                         ├── run-native.sh
+                         └── ...
+
+2. Build binary     → python build.py
+                      ↓
+                      orangescrum-cloud/orangescrum-app/osv4-prod
+
+3. Build deployments → build-docker.sh & build-native.sh
+                       ↓                 ↓
+                       orangescrum-cloud-docker/
+                       orangescrum-cloud-native/
+
+4. Deploy           → cd orangescrum-cloud-docker/ OR orangescrum-cloud-native/
+                      ↓
+                      docker compose up -d OR ./run-native.sh
+```
+
+## 📦 Files Organization
+
+### Docker-Specific
+- `Dockerfile`
+- `docker-compose.yaml`
+- `docker-compose.services.yml`
+- `entrypoint.sh`
+- `.dockerignore`
+- `.env.docker`
+
+### Native-Specific
+- `run-native.sh`
+- `run.sh`
+- `package.sh`
+- `caddy.sh`
+- `.env.full.example`
+
+### Common (Used by Both)
+- `config/` - Configuration templates
+- `docs/` - Documentation
+- `cake.sh` - CakePHP CLI
+- `queue-worker.sh` - Queue worker
+- `validate-env.sh` - Validation
+- `.env.example` - Environment template
+- `CONFIGS.md` - Config reference
 
 ---
 
-## Quick Start (Development)
+**This is the source folder. Deploy from `orangescrum-cloud-docker/` or `orangescrum-cloud-native/`.**
 
-### Prerequisites
+docker-compose -f docker-compose.services.yml up -d
 
-- Docker and Docker Compose installed
-- PostgreSQL database (local or external)
-- Redis server for caching and queuing (recommended)
+# Services:
+# - PostgreSQL 16 on 5432 (user: postgres, password: postgres)
+# - Redis 7 on 6379
+# - MinIO (S3) on 9000/9090 (access: minioadmin/minioadmin)
+# - MailHog (SMTP) on 1025/8025 (web: http://localhost:8025)
 
-### 1. Configure Environment
+# Stop
+docker-compose -f docker-compose.services.yml down
 
-```bash
-cp .env.example .env
-nano .env
+# View logs
+docker-compose -f docker-compose.services.yml logs -f
 ```
 
-**Critical: Set these values**
+---
+
+## Documentation
+
+📘 **Getting Started:**
+- [DEPLOYMENT.md](docs/DEPLOYMENT.md) - Quick start and basic configuration
+
+📚 **Production Deployment:**
+- [PRODUCTION_READINESS_SUMMARY.md](docs/PRODUCTION_READINESS_SUMMARY.md) - Pre-production checklist
+- [PRODUCTION_DEPLOYMENT_NATIVE.md](docs/PRODUCTION_DEPLOYMENT_NATIVE.md) - Native binary on Linux server
+- [PRODUCTION_DEPLOYMENT_DOCKER.md](docs/PRODUCTION_DEPLOYMENT_DOCKER.md) - Docker Compose on server
+
+⚙️ **Configuration & Operations:**
+- [ENVIRONMENT_CONFIGURATION.md](docs/ENVIRONMENT_CONFIGURATION.md) - All environment variables
+- [CONFIGS.md](CONFIGS.md) - Configuration files reference
+
+---
+
+## Pre-flight Checks
+
+Before starting the application, `run.sh` verifies:
+
+✅ FrankenPHP binary exists  
+✅ PostgreSQL client (`psql`) is installed  
+⚠️ Warns if database seeders cannot run (without `psql`)
+
+### Installing Dependencies
 
 ```bash
-# Generate a secure salt (REQUIRED)
-SECURITY_SALT=$(php -r 'echo hash("sha256", bin2hex(random_bytes(32)));')
+# Ubuntu/Debian
+sudo apt install -y postgresql-client
 
-# Database configuration (REQUIRED)
-DB_HOST=your-database-host
-DB_PASSWORD=your-secure-password
-DB_NAME=orangescrum
+# macOS
+brew install postgresql
 
-# Cache engine: 'redis' (recommended) or 'file'
+# Alpine
+apk add postgresql-client
+```
+
+---
+
+## Running the Application
+
+### Foreground Mode (Development)
 CACHE_ENGINE=redis
 
 # Redis configuration (if CACHE_ENGINE=redis)
@@ -111,7 +392,7 @@ orangescrum-cloud/
 ├── Dockerfile                      # FrankenPHP runtime container
 ├── docker-compose.yaml             # Service orchestration
 ├── entrypoint.sh                   # Startup script with config generation
-├── .env.example                    # Environment configuration template
+├── .env.docker                     # Environment configuration template for development
 ├── FRANKENPHP_DEPLOYMENT.md       # Detailed deployment guide
 ├── README.md                       # This file
 ├── orangescrum-app/

@@ -79,7 +79,7 @@ python3 --version         # Need 3.8+
 ### Step 2: Start Support Services
 
 ```bash
-cd /home/ubuntu/workspace/project-durango
+cd <project-root>
 
 # Start PostgreSQL, Redis, MailHog
 docker compose -f docker-compose.services.yml up -d
@@ -114,7 +114,7 @@ Key settings to verify:
 ### Step 4: Build FrankenPHP Binary
 
 ```bash
-cd /home/ubuntu/workspace/project-durango/durango-builder
+cd <project-root>/durango-builder
 
 # Create Python virtual environment (one-time)
 python3 -m venv .venv
@@ -331,7 +331,7 @@ kill $PID
 ### Stop Support Services
 
 ```bash
-cd /home/ubuntu/workspace/project-durango
+cd <project-root>
 
 docker compose -f docker-compose.services.yml down
 ```
@@ -339,7 +339,7 @@ docker compose -f docker-compose.services.yml down
 ### Rebuild Application (code changes)
 
 ```bash
-cd /home/ubuntu/workspace/project-durango/durango-builder
+cd <project-root>/durango-builder
 
 # Skip base image rebuild (faster)
 python3 build.py --skip-base

@@ -4,8 +4,10 @@
 This script:
 1) Archives the OrangeScrum V4 app from ../apps/orangescrum-v4
 2) Builds the FrankenPHP embedded binary using the builder compose stack
-3) Extracts the produced static binary into orangescrum-cloud/orangescrum-app/
-4) Builds + starts the orangescrum-app service using orangescrum-cloud/docker-compose.yaml
+3) Extracts the produced static binary into:
+   - orangescrum-cloud-docker/orangescrum-app/osv4-prod (Docker deployment)
+   - orangescrum-cloud-native/orangescrum-app/osv4-prod (Native deployment)
+4) Optionally builds + starts the orangescrum-app service (Docker only)
 
 Notes:
 - Only builds the orangescrum-v4 application (not durango-pg or orangescrum v2)
@@ -32,13 +34,35 @@ BUILDER = ROOT / "builder"
 PACKAGE = BUILDER / "package"
 BUILDER_COMPOSE_FILE = BUILDER / "docker-compose.yaml"
 
-ORANGESCRUM_EE_DIR = ROOT / "orangescrum-cloud"
-APP_COMPOSE_FILE = ORANGESCRUM_EE_DIR / "docker-compose.yaml"
-APP_ENV_FILE_DEFAULT = ORANGESCRUM_EE_DIR / ".env"
-APP_ENV_FILE_EXAMPLE = ORANGESCRUM_EE_DIR / ".env.example"
-CONFIG_OVERRIDES_DIR = ORANGESCRUM_EE_DIR / "config"
+# New separated structure
+ORANGESCRUM_COMMON_DIR = ROOT / "orangescrum-cloud-common"
+ORANGESCRUM_DOCKER_SOURCE = ROOT / "orangescrum-cloud-docker"
+ORANGESCRUM_NATIVE_SOURCE = ROOT / "orangescrum-cloud-native"
 
-ORANGESCRUM_EE_BINARY = ORANGESCRUM_EE_DIR / "orangescrum-app/osv4-prod"
+# Build output directories
+DIST_DOCKER_DIR = ROOT / "dist-docker"
+DIST_NATIVE_DIR = ROOT / "dist-native"
+
+# Legacy directory (deprecated - for backwards compatibility with old orangescrum-cloud)
+ORANGESCRUM_EE_DIR = ROOT / "orangescrum-cloud"
+
+# Common paths (shared binary location)
+COMMON_BINARY = ORANGESCRUM_COMMON_DIR / "orangescrum-app/osv4-prod"
+COMMON_CONFIG_OVERRIDES_DIR = ORANGESCRUM_COMMON_DIR / "config"
+
+# Docker deployment paths (for running after build)
+DOCKER_APP_COMPOSE_FILE = DIST_DOCKER_DIR / "docker-compose.yaml"
+DOCKER_ENV_FILE_DEFAULT = DIST_DOCKER_DIR / ".env"
+DOCKER_ENV_FILE_EXAMPLE = DIST_DOCKER_DIR / ".env.example"
+
+# Use common paths for config overrides and binary during build
+CONFIG_OVERRIDES_DIR = COMMON_CONFIG_OVERRIDES_DIR
+ORANGESCRUM_EE_BINARY = COMMON_BINARY
+
+# Deployment defaults (for --deploy flag)
+APP_COMPOSE_FILE = DOCKER_APP_COMPOSE_FILE
+APP_ENV_FILE_DEFAULT = DOCKER_ENV_FILE_DEFAULT
+APP_ENV_FILE_EXAMPLE = DOCKER_ENV_FILE_EXAMPLE
 
 FRANKENPHP_BASE_IMAGE = os.environ.get(
     "FRANKENPHP_BASE_IMAGE", "orangescrum-cloud-base:latest"
@@ -266,7 +290,11 @@ def _stop_builder_stack():
 
 def _copy_frankenphp_binary(docker_client: docker.DockerClient):
     print("Copying FrankenPHP binary from builder container...")
-    ORANGESCRUM_EE_BINARY.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Create output directory in NEW common location
+    common_binary_dir = ORANGESCRUM_COMMON_DIR / "orangescrum-app"
+    common_binary_dir.mkdir(parents=True, exist_ok=True)
+    common_binary = common_binary_dir / "osv4-prod"
 
     # Get container ID from docker compose
     container_id = _run_cmd_capture(
@@ -290,16 +318,20 @@ def _copy_frankenphp_binary(docker_client: docker.DockerClient):
     bits, _ = container.get_archive("/go/src/app/dist/frankenphp-linux-x86_64")
 
     tar_stream = io.BytesIO(b"".join(bits))
+    
+    # Extract to NEW common location
     with tarfile.open(fileobj=tar_stream) as tar:
-        tar.extractall(path=ORANGESCRUM_EE_BINARY.parent)
+        tar.extractall(path=common_binary_dir)
 
-    extracted_binary = ORANGESCRUM_EE_BINARY.parent / "frankenphp-linux-x86_64"
+    extracted_binary = common_binary_dir / "frankenphp-linux-x86_64"
     if extracted_binary.exists():
-        extracted_binary.rename(ORANGESCRUM_EE_BINARY)
+        extracted_binary.rename(common_binary)
 
-    ORANGESCRUM_EE_BINARY.chmod(0o755)
-    size_mb = ORANGESCRUM_EE_BINARY.stat().st_size / (1024 * 1024)
-    print(f"✓ FrankenPHP binary extracted: {ORANGESCRUM_EE_BINARY} ({size_mb:.1f} MB)")
+    common_binary.chmod(0o755)
+    size_mb = common_binary.stat().st_size / (1024 * 1024)
+    print(f"✓ FrankenPHP binary extracted to: {common_binary} ({size_mb:.1f} MB)")
+
+
 
 
 def _resolve_env_file(path_str: str | None) -> Path:
@@ -324,7 +356,7 @@ def _wait_for_app_healthy(
             # Try to get container by service name
             cid = _run_cmd_capture(
                 ["docker", "compose", "-f", str(APP_COMPOSE_FILE), "ps", "-q", "orangescrum-app"],
-                cwd=ORANGESCRUM_EE_DIR,
+                cwd=DIST_DOCKER_DIR,
             )
             if not cid:
                 time.sleep(2)
@@ -352,6 +384,33 @@ def _wait_for_app_healthy(
 
     print(f"⚠️  orangescrum-app did not become healthy within {timeout_s}s")
     return False
+
+
+def _build_deployment_folders():
+    """Build deployment folders using new separated build scripts"""
+    print("Building deployment folders from separated sources...")
+    
+    # Run Docker build script
+    docker_build_script = ORANGESCRUM_DOCKER_SOURCE / "build.sh"
+    if docker_build_script.exists():
+        print("\n🐳 Building Docker deployment...")
+        _run_cmd(["bash", str(docker_build_script)], cwd=ORANGESCRUM_DOCKER_SOURCE)
+        print("  ✓ Docker deployment built → dist-docker/")
+    else:
+        print(f"⚠️  Warning: {docker_build_script} not found")
+    
+    # Run Native build script
+    native_build_script = ORANGESCRUM_NATIVE_SOURCE / "build.sh"
+    if native_build_script.exists():
+        print("\n🖥️  Building Native deployment...")
+        _run_cmd(["bash", str(native_build_script)], cwd=ORANGESCRUM_NATIVE_SOURCE)
+        print("  ✓ Native deployment built → dist-native/")
+    else:
+        print(f"⚠️  Warning: {native_build_script} not found")
+    
+    print("\n✓ Deployment folders built successfully")
+    print(f"  Docker:  {DIST_DOCKER_DIR}")
+    print(f"  Native:  {DIST_NATIVE_DIR}")
 
 
 def check_prerequisites() -> bool:
@@ -428,11 +487,12 @@ def _deploy_orangescrum_app(docker_client: docker.DockerClient, env_file: Path, 
             "-d",
             "--build",
         ],
-        cwd=ORANGESCRUM_EE_DIR,
+        cwd=DIST_DOCKER_DIR,
         env=env,
     )
     
-    print("✓ OrangeScrum V4 application deployed")
+    print("✓ OrangeScrum V4 application deployed (Docker)")
+
 
 
 def main():
@@ -590,8 +650,12 @@ def main():
         print("\nStep 8: Extracting FrankenPHP binary...")
         _copy_frankenphp_binary(docker_client)
         
+        # Step 9.5: Build deployment folders
+        print("\nStep 9: Building deployment folders...")
+        _build_deployment_folders()
+        
         # Step 10: Stop builder
-        print("\nStep 9: Cleaning up builder containers...")
+        print("\nStep 10: Cleaning up builder containers...")
         _stop_builder_stack()
         
         # Clean up package directory unless --keep-package
@@ -601,30 +665,47 @@ def main():
         
         # Step 11: Deploy if not skipped
         if not args.skip_deploy:
-            print("\nStep 10: Deploying OrangeScrum V4 application...")
+            print("\nStep 11: Deploying OrangeScrum V4 application (Docker)...")
+            _ensure_app_env()
+            _deploy_orangescrum_app(docker_client, env_file, env_overrides)
+            
+            # Wait for health check
+)
             _ensure_app_env()
             _deploy_orangescrum_app(docker_client, env_file, env_overrides)
             
             # Wait for health check
             _wait_for_app_healthy(docker_client)
         
-        print("\n" + "=" * 60)
-        print("Build Complete!")
-        print("=" * 60)
-        print(f"\nFrankenPHP binary: {ORANGESCRUM_EE_BINARY}")
+        print("\n" + "=" * 70)
+        print("🎉 Build Complete!")
+        print("=" * 70)
+        print(f"\n✓ FrankenPHP binary: {COMMON_BINARY}")
+        print(f"\n✓ Deployment packages built:")
+        print(f"  🐳 Docker:  {DIST_DOCKER_DIR}")
+        print(f"  🖥️  Native: {DIST_NATIVE_DIR}")
         
         if not args.skip_deploy:
             app_port = env_overrides.get("APP_PORT", "8080")
-            print(f"\n🎉 OrangeScrum V4 is now running!")
+            print(f"\n🎉 OrangeScrum V4 is now running (Docker deployment)!")
             print(f"Access at: http://localhost:{app_port}")
             print("\nUseful commands:")
-            print("  cd orangescrum-cloud && docker compose ps      # Check status")
-            print("  cd orangescrum-cloud && docker compose logs -f # View logs")
+            print(f"  cd {DIST_DOCKER_DIR} && docker compose ps      # Check status")
+            print(f"  cd {DIST_DOCKER_DIR} && docker compose logs -f # View logs")
         else:
             print("\nTo deploy the application:")
-            print("  cd orangescrum-cloud")
-            print("  cp .env.example .env  # Edit with your settings")
-            print("  docker compose up -d")
+            print("\n🐳 Docker deployment:")
+            print(f"  cd {DIST_DOCKER_DIR}")
+            print("  cp .env.example .env")
+            print("  nano .env  # Edit configuration")
+            print("  docker-compose -f docker-compose.services.yml up -d  # Infrastructure (optional)")
+            print("  docker compose up -d  # Start application")
+            print("\n🖥️  Native deployment:")
+            print(f"  cd {DIST_NATIVE_DIR}")
+            print("  cp .env.example .env")
+            print("  nano .env  # Edit configuration")
+            print("  ./helpers/validate-env.sh  # Validate config")
+            print("  ./run-native.sh  # Start application")
         
         print()
         

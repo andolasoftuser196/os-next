@@ -41,7 +41,7 @@ DOCKER_BUILDKIT=1 docker compose build frankenphp-base-builder
 
 ### 2. First Build (No Cache)
 ```bash
-cd /home/ubuntu/workspace/project-durango/durango-builder/builder
+cd <project-root>/durango-builder/builder
 
 # Enable BuildKit
 export DOCKER_BUILDKIT=1

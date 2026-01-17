@@ -74,43 +74,63 @@ python3 build.py
 python3 build.py
 ```
 
-### Step 3: Configure Deployment
+### Step 3: Choose Deployment Type
+
+Choose between Docker or Native deployment:
+
+#### Option A: Docker Deployment (Recommended)
 
 ```bash
-cd orangescrum-cloud
+cd orangescrum-cloud-docker
 
 # Copy example environment file
 cp .env.example .env
 
-# Edit .env to configure:
-# - Database connection (DB_HOST, DB_NAME, DB_USERNAME, DB_PASSWORD)
-# - Security salt (SECURITY_SALT)
-# - Redis configuration (optional)
-# - S3 storage configuration (optional)
-# - Email settings (optional)
+# Edit .env to configure database, security, etc.
 nano .env
-```
 
-**Critical Settings:**
+# Start infrastructure services (PostgreSQL, Redis, MinIO, MailHog)
+docker-compose -f docker-compose.services.yml up -d
 
-- `DB_HOST`: Your PostgreSQL server (e.g., `postgres16` or `your-db-host.com`)
-- `DB_NAME`: `orangescrum`
-- `DB_USERNAME`: `orangescrum`
-- `DB_PASSWORD`: Use a strong password!
-- `SECURITY_SALT`: Generate with `php -r 'echo hash("sha256", bin2hex(random_bytes(32)));'`
-
-### Step 4: Deploy
-
-```bash
-# Start the OrangeScrum V4 application
+# Start the application
 docker compose up -d
 
 # View logs
 docker compose logs -f orangescrum-app
-
-# Check status
-docker compose ps
 ```
+
+📘 See [orangescrum-cloud-docker/README.md](orangescrum-cloud-docker/README.md) for complete Docker deployment guide.
+
+#### Option B: Native Deployment (Direct System Execution)
+
+```bash
+cd orangescrum-cloud-native
+
+# Copy example environment file
+cp .env.example .env
+
+# Edit .env to configure database, security, etc.
+nano .env
+
+# Validate configuration
+./validate-env.sh
+
+# Run application (foreground)
+./run-native.sh
+
+# Or run as daemon
+DAEMON=true ./run-native.sh &
+```
+
+📘 See [orangescrum-cloud-native/README.md](orangescrum-cloud-native/README.md) for complete native deployment guide.
+
+**Critical Settings (both deployments):**
+
+- `DB_HOST`: Your PostgreSQL server (e.g., `localhost` or `192.168.49.10`)
+- `DB_NAME`: `orangescrum`
+- `DB_USERNAME`: `postgres` or `orangescrum`
+- `DB_PASSWORD`: Use a strong password!
+- `SECURITY_SALT`: Generate with `openssl rand -base64 32`
 
 The application will be available at `http://localhost:8080` (or configured port).
 
@@ -148,20 +168,48 @@ python3 build.py --clean
 
 ## Deployment Architecture
 
+### Deployment Options
+
+This builder supports two deployment methods:
+
+1. **🐳 Docker Deployment** (`orangescrum-cloud-docker/`)
+   - Containerized deployment with Docker Compose
+   - Includes infrastructure services (PostgreSQL, Redis, MinIO)
+   - Easy orchestration and scaling
+   - Recommended for most users
+   - See [orangescrum-cloud-docker/README.md](orangescrum-cloud-docker/README.md)
+
+2. **🖥️ Native Deployment** (`orangescrum-cloud-native/`)
+   - Direct system execution without containers
+   - Better performance, lower overhead
+   - Requires manual service configuration
+   - Ideal for production servers with existing infrastructure
+   - See [orangescrum-cloud-native/README.md](orangescrum-cloud-native/README.md)
+
 ### Local Development
 
-- Use `orangescrum-cloud/docker-compose.yaml`
-- Connects to external PostgreSQL database
+**Docker:**
+- Use `orangescrum-cloud-docker/docker-compose.yaml`
+- Includes local PostgreSQL, Redis, MinIO, and MailHog
+- Exposes port 8080 by default
+
+**Native:**
+- Use `orangescrum-cloud-native/run-native.sh`
+- Requires external PostgreSQL, Redis (optional), and S3 (optional)
 - Exposes port 8080 by default
 
 ### Production Deployment
 
-The standalone `orangescrum-cloud` binary can be deployed to:
+The FrankenPHP binary can be deployed to:
 
 - **Cloud Platforms**: AWS, Google Cloud, Azure, DigitalOcean
 - **Container Platforms**: Kubernetes, Docker Swarm, ECS
 - **Serverless**: Cloud Run, Lambda (with container support)
-- **VPS**: Any Linux server
+- **VPS/Bare Metal**: Any Linux server (native deployment)
+
+📘 **Production Guides:**
+- Docker: [orangescrum-cloud-docker/docs/PRODUCTION_DEPLOYMENT_DOCKER.md](orangescrum-cloud-docker/docs/PRODUCTION_DEPLOYMENT_DOCKER.md)
+- Native: [orangescrum-cloud-native/docs/PRODUCTION_DEPLOYMENT_NATIVE.md](orangescrum-cloud-native/docs/PRODUCTION_DEPLOYMENT_NATIVE.md)
 
 ### Environment Variables
 
@@ -183,17 +231,32 @@ Optional:
 
 ```
 cloud-builder/
-├── build.py                    # Main build script
+├── build.py                        # Main build script
 ├── builder/
-│   ├── base-build.Dockerfile   # FrankenPHP base image
-│   ├── app-embed.Dockerfile    # App embedding
-│   └── docker-compose.yaml     # Builder services
-└── orangescrum-cloud/
-    ├── docker-compose.yaml     # Deployment config
-    ├── .env.example            # Environment template
-    ├── Dockerfile              # Production container
-    └── orangescrum-app/
-        └── orangescrum-cloud      # Static binary (generated)
+│   ├── base-build.Dockerfile       # FrankenPHP base image
+│   ├── app-embed.Dockerfile        # App embedding
+│   └── docker-compose.yaml         # Builder services
+├── orangescrum-cloud-docker/       # Docker deployment
+│   ├── docker-compose.yaml         # Application orchestration
+│   ├── docker-compose.services.yml # Infrastructure services
+│   ├── Dockerfile                  # Production container
+│   ├── entrypoint.sh               # Container startup
+│   ├── .env.example                # Environment template
+│   ├── config/                     # Configuration files
+│   ├── docs/                       # Docker-specific docs
+│   └── orangescrum-app/
+│       └── osv4-prod               # Static binary (generated)
+├── orangescrum-cloud-native/       # Native deployment
+│   ├── run-native.sh               # Native runner script
+│   ├── run.sh                      # Alternative runner
+│   ├── .env.example                # Environment template
+│   ├── validate-env.sh             # Configuration validator
+│   ├── config/                     # Configuration files
+│   ├── docs/                       # Native-specific docs
+│   └── orangescrum-app/
+│       └── osv4-prod               # Static binary (generated)
+└── orangescrum-cloud/              # Legacy (deprecated)
+    └── ...                         # Use -docker or -native instead
 ```
 
 ---

@@ -153,3 +153,9 @@ orangescrum-cloud/frankenphp.pid
 orangescrum-cloud/orangescrum-frankenphp-*.tar.gz
 orangescrum-cloud/queue-worker.pid
 builder/package/*
+
+# Auto-generated files
+orangescrum-cloud-docker/
+orangescrum-cloud-native/
+dist/
+
