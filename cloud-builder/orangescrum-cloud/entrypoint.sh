@@ -19,21 +19,21 @@ echo "Validating production environment..."
 
 # Check for insecure default values (fail fast)
 if [ "$SECURITY_SALT" = "__CHANGE_THIS_TO_RANDOM_STRING__" ]; then
-    echo "❌ FATAL ERROR: SECURITY_SALT is still using the default value!"
+    echo "[ERROR] FATAL ERROR: SECURITY_SALT is still using the default value!"
     echo "   Generate a secure value with: openssl rand -base64 32"
     echo "   Set it in your .env file before deployment."
     exit 1
 fi
 
 if [ "$DB_PASSWORD" = "changeme_in_production" ]; then
-    echo "❌ FATAL ERROR: DB_PASSWORD is still using the default value!"
+    echo "[ERROR] FATAL ERROR: DB_PASSWORD is still using the default value!"
     echo "   Generate a secure password with: openssl rand -base64 24"
     echo "   Set it in your .env file before deployment."
     exit 1
 fi
 
 if [ "$V4_ROUTING_ENABLED" = "true" ] && [ "$V2_ROUTING_API_KEY" = "your-secure-api-key-here-change-this" ]; then
-    echo "❌ FATAL ERROR: V2_ROUTING_API_KEY is still using the default value!"
+    echo "[ERROR] FATAL ERROR: V2_ROUTING_API_KEY is still using the default value!"
     echo "   Generate a secure key with: openssl rand -base64 32"
     echo "   Set it in your .env file before deployment."
     exit 1
@@ -41,40 +41,40 @@ fi
 
 # Validate required variables are set
 if [ -z "$SECURITY_SALT" ]; then
-    echo "❌ FATAL ERROR: SECURITY_SALT environment variable is required!"
+    echo "[ERROR] FATAL ERROR: SECURITY_SALT environment variable is required!"
     echo "   Generate with: openssl rand -base64 32"
     exit 1
 fi
 
 if [ -z "$DB_PASSWORD" ]; then
-    echo "❌ FATAL ERROR: DB_PASSWORD environment variable is required!"
+    echo "[ERROR] FATAL ERROR: DB_PASSWORD environment variable is required!"
     echo "   Set a strong password in your .env file."
     exit 1
 fi
 
 # Security length validation
 if [ ${#SECURITY_SALT} -lt 32 ]; then
-    echo "⚠ WARNING: SECURITY_SALT is shorter than recommended (current: ${#SECURITY_SALT}, recommended: 32+)"
+    echo "[WARNING] WARNING: SECURITY_SALT is shorter than recommended (current: ${#SECURITY_SALT}, recommended: 32+)"
     echo "   For production, use: openssl rand -base64 32"
 fi
 
 if [ ${#DB_PASSWORD} -lt 16 ]; then
-    echo "⚠ WARNING: DB_PASSWORD is shorter than recommended (current: ${#DB_PASSWORD}, recommended: 16+)"
+    echo "[WARNING] WARNING: DB_PASSWORD is shorter than recommended (current: ${#DB_PASSWORD}, recommended: 16+)"
     echo "   For production, use: openssl rand -base64 24"
 fi
 
 # Production mode checks
 if [ "$DEBUG" = "true" ]; then
-    echo "⚠ WARNING: DEBUG=true is enabled! This should be 'false' in production."
+    echo "[WARNING] WARNING: DEBUG=true is enabled! This should be 'false' in production."
     echo "   Debug mode may expose sensitive information."
 fi
 
 if [ "$APP_BIND_IP" = "0.0.0.0" ]; then
-    echo "⚠ INFO: Application binding to 0.0.0.0 (all interfaces)"
+    echo "[WARNING] INFO: Application binding to 0.0.0.0 (all interfaces)"
     echo "   For reverse proxy deployments, consider APP_BIND_IP=127.0.0.1"
 fi
 
-echo "✓ Environment validation completed"
+echo "[OK] Environment validation completed"
 
 # ============================================
 # Start FrankenPHP and Extract App
@@ -85,17 +85,17 @@ echo "Cleaning up old extraction directories..."
 OLD_DIRS=$(find /tmp -maxdepth 1 -name "frankenphp_*" -type d 2>/dev/null)
 if [ -n "$OLD_DIRS" ]; then
     echo "$OLD_DIRS" | while read dir; do
-        rm -rf "$dir" && echo "  ✓ Removed: $dir"
+        rm -rf "$dir" && echo "  [OK] Removed: $dir"
     done
 else
-    echo "  ✓ No old directories to clean"
+    echo "  [OK] No old directories to clean"
 fi
 
 # Start FrankenPHP in background to let it extract the embedded app
 echo "Starting FrankenPHP server..."
 "$@" &
 FRANKENPHP_PID=$!
-echo "  ✓ FrankenPHP started (PID: $FRANKENPHP_PID)"
+echo "  [OK] FrankenPHP started (PID: $FRANKENPHP_PID)"
 
 # Wait for FrankenPHP to extract the embedded app
 echo "Waiting for embedded app extraction..."
@@ -103,14 +103,14 @@ EXTRACTED_APP=""
 for i in {1..30}; do
     EXTRACTED_APP=$(find /tmp -maxdepth 1 -name "frankenphp_*" -type d 2>/dev/null | head -1)
     if [ -n "$EXTRACTED_APP" ]; then
-        echo "  ✓ Found extracted app at: $EXTRACTED_APP"
+        echo "  [OK] Found extracted app at: $EXTRACTED_APP"
         break
     fi
     sleep 1
 done
 
 if [ -z "$EXTRACTED_APP" ]; then
-    echo "❌ Could not find extracted FrankenPHP app directory"
+    echo "[ERROR] Could not find extracted FrankenPHP app directory"
     kill $FRANKENPHP_PID 2>/dev/null || true
     exit 1
 fi
@@ -120,17 +120,17 @@ sleep 3
 
 # Check if FrankenPHP is still running (it may have crashed due to path mismatch)
 if ! kill -0 $FRANKENPHP_PID 2>/dev/null; then
-    echo "⚠ FrankenPHP crashed during extraction (expected with path mismatch)"
+    echo "[WARNING] FrankenPHP crashed during extraction (expected with path mismatch)"
     echo "  Restarting with correct extraction path..."
     
     # Start again - this time it should use the existing extracted directory
     "$@" &
     FRANKENPHP_PID=$!
-    echo "  ✓ FrankenPHP restarted (PID: $FRANKENPHP_PID)"
+    echo "  [OK] FrankenPHP restarted (PID: $FRANKENPHP_PID)"
     sleep 2
 fi
 
-echo "✓ App extracted and ready"
+echo "[OK] App extracted and ready"
 
 # Export DB password if provided via file
 if [ -n "$DB_PASSWORD_FILE" ] && [ -f "$DB_PASSWORD_FILE" ]; then
@@ -141,43 +141,43 @@ fi
 echo "Setting up configuration files..."
 if [ -d "$EXTRACTED_APP/config" ]; then
     # Core configs
-    cp "$EXTRACTED_APP/config/app_local.example.php" "$EXTRACTED_APP/config/app_local.php" 2>/dev/null && echo "  ✓ app_local.php"
+    cp "$EXTRACTED_APP/config/app_local.example.php" "$EXTRACTED_APP/config/app_local.php" 2>/dev/null && echo "  [OK] app_local.php"
     
     # Cache configs (copy all variants - app will load based on CACHE_ENGINE env var)
-    cp "$EXTRACTED_APP/config/cache_redis.example.php" "$EXTRACTED_APP/config/cache_redis.php" 2>/dev/null && echo "  ✓ cache_redis.php"
-    cp "$EXTRACTED_APP/config/cache_file.example.php" "$EXTRACTED_APP/config/cache_file.php" 2>/dev/null && echo "  ✓ cache_file.php"
-    cp "$EXTRACTED_APP/config/cache_memcached.example.php" "$EXTRACTED_APP/config/cache_memcached.php" 2>/dev/null && echo "  ✓ cache_memcached.php"
-    cp "$EXTRACTED_APP/config/cache_auto.example.php" "$EXTRACTED_APP/config/cache_auto.php" 2>/dev/null && echo "  ✓ cache_auto.php"
+    cp "$EXTRACTED_APP/config/cache_redis.example.php" "$EXTRACTED_APP/config/cache_redis.php" 2>/dev/null && echo "  [OK] cache_redis.php"
+    cp "$EXTRACTED_APP/config/cache_file.example.php" "$EXTRACTED_APP/config/cache_file.php" 2>/dev/null && echo "  [OK] cache_file.php"
+    cp "$EXTRACTED_APP/config/cache_memcached.example.php" "$EXTRACTED_APP/config/cache_memcached.php" 2>/dev/null && echo "  [OK] cache_memcached.php"
+    cp "$EXTRACTED_APP/config/cache_auto.example.php" "$EXTRACTED_APP/config/cache_auto.php" 2>/dev/null && echo "  [OK] cache_auto.php"
     
     # Queue configs
-    cp "$EXTRACTED_APP/config/queue.example.php" "$EXTRACTED_APP/config/queue.php" 2>/dev/null && echo "  ✓ queue.php"
+    cp "$EXTRACTED_APP/config/queue.example.php" "$EXTRACTED_APP/config/queue.php" 2>/dev/null && echo "  [OK] queue.php"
     
     # Email configs (copy both - app will load based on EMAIL_TRANSPORT env var)
-    cp "$EXTRACTED_APP/config/sendgrid.example.php" "$EXTRACTED_APP/config/sendgrid.php" 2>/dev/null && echo "  ✓ sendgrid.php"
-    cp "$EXTRACTED_APP/config/smtp.example.php" "$EXTRACTED_APP/config/smtp.php" 2>/dev/null && echo "  ✓ smtp.php"
+    cp "$EXTRACTED_APP/config/sendgrid.example.php" "$EXTRACTED_APP/config/sendgrid.php" 2>/dev/null && echo "  [OK] sendgrid.php"
+    cp "$EXTRACTED_APP/config/smtp.example.php" "$EXTRACTED_APP/config/smtp.php" 2>/dev/null && echo "  [OK] smtp.php"
     
     # Storage configs
-    cp "$EXTRACTED_APP/config/storage.example.php" "$EXTRACTED_APP/config/storage.php" 2>/dev/null && echo "  ✓ storage.php"
-    cp "$EXTRACTED_APP/config/cloudstorage.example.php" "$EXTRACTED_APP/config/cloudstorage.php" 2>/dev/null && echo "  ✓ cloudstorage.php"
+    cp "$EXTRACTED_APP/config/storage.example.php" "$EXTRACTED_APP/config/storage.php" 2>/dev/null && echo "  [OK] storage.php"
+    cp "$EXTRACTED_APP/config/cloudstorage.example.php" "$EXTRACTED_APP/config/cloudstorage.php" 2>/dev/null && echo "  [OK] cloudstorage.php"
     
     # Integration configs
-    cp "$EXTRACTED_APP/config/recaptcha.example.php" "$EXTRACTED_APP/config/recaptcha.php" 2>/dev/null && echo "  ✓ recaptcha.php"
-    cp "$EXTRACTED_APP/config/google_oauth.example.php" "$EXTRACTED_APP/config/google_oauth.php" 2>/dev/null && echo "  ✓ google_oauth.php"
-    cp "$EXTRACTED_APP/config/google_drive.example.php" "$EXTRACTED_APP/config/google_drive.php" 2>/dev/null && echo "  ✓ google_drive.php"
-    cp "$EXTRACTED_APP/config/github.example.php" "$EXTRACTED_APP/config/github.php" 2>/dev/null && echo "  ✓ github.php"
-    cp "$EXTRACTED_APP/config/v2_routing.example.php" "$EXTRACTED_APP/config/v2_routing.php" 2>/dev/null && echo "  ✓ v2_routing.php"
+    cp "$EXTRACTED_APP/config/recaptcha.example.php" "$EXTRACTED_APP/config/recaptcha.php" 2>/dev/null && echo "  [OK] recaptcha.php"
+    cp "$EXTRACTED_APP/config/google_oauth.example.php" "$EXTRACTED_APP/config/google_oauth.php" 2>/dev/null && echo "  [OK] google_oauth.php"
+    cp "$EXTRACTED_APP/config/google_drive.example.php" "$EXTRACTED_APP/config/google_drive.php" 2>/dev/null && echo "  [OK] google_drive.php"
+    cp "$EXTRACTED_APP/config/github.example.php" "$EXTRACTED_APP/config/github.php" 2>/dev/null && echo "  [OK] github.php"
+    cp "$EXTRACTED_APP/config/v2_routing.example.php" "$EXTRACTED_APP/config/v2_routing.php" 2>/dev/null && echo "  [OK] v2_routing.php"
     
     # Copy Payments plugin config if plugin exists
     if [ -d "$EXTRACTED_APP/plugins/Payments/config" ]; then
-        cp "$EXTRACTED_APP/plugins/Payments/config/stripe.example.php" "$EXTRACTED_APP/plugins/Payments/config/stripe.php" 2>/dev/null && echo "  ✓ Payments/stripe.php"
+        cp "$EXTRACTED_APP/plugins/Payments/config/stripe.example.php" "$EXTRACTED_APP/plugins/Payments/config/stripe.php" 2>/dev/null && echo "  [OK] Payments/stripe.php"
     fi
     
     # Copy GitSync plugin configs if plugin exists
     if [ -d "$EXTRACTED_APP/plugins/GitSync/config" ]; then
-        cp "$EXTRACTED_APP/plugins/GitSync/config/gitsync.example.php" "$EXTRACTED_APP/plugins/GitSync/config/gitsync.php" 2>/dev/null && echo "  ✓ GitSync/gitsync.php"
-        cp "$EXTRACTED_APP/plugins/GitSync/config/gitsync_github.example.php" "$EXTRACTED_APP/plugins/GitSync/config/gitsync_github.php" 2>/dev/null && echo "  ✓ GitSync/gitsync_github.php"
-        cp "$EXTRACTED_APP/plugins/GitSync/config/gitsync_gitlab.example.php" "$EXTRACTED_APP/plugins/GitSync/config/gitsync_gitlab.php" 2>/dev/null && echo "  ✓ GitSync/gitsync_gitlab.php"
-        cp "$EXTRACTED_APP/plugins/GitSync/config/gitsync_bitbucket.example.php" "$EXTRACTED_APP/plugins/GitSync/config/gitsync_bitbucket.php" 2>/dev/null && echo "  ✓ GitSync/gitsync_bitbucket.php"
+        cp "$EXTRACTED_APP/plugins/GitSync/config/gitsync.example.php" "$EXTRACTED_APP/plugins/GitSync/config/gitsync.php" 2>/dev/null && echo "  [OK] GitSync/gitsync.php"
+        cp "$EXTRACTED_APP/plugins/GitSync/config/gitsync_github.example.php" "$EXTRACTED_APP/plugins/GitSync/config/gitsync_github.php" 2>/dev/null && echo "  [OK] GitSync/gitsync_github.php"
+        cp "$EXTRACTED_APP/plugins/GitSync/config/gitsync_gitlab.example.php" "$EXTRACTED_APP/plugins/GitSync/config/gitsync_gitlab.php" 2>/dev/null && echo "  [OK] GitSync/gitsync_gitlab.php"
+        cp "$EXTRACTED_APP/plugins/GitSync/config/gitsync_bitbucket.example.php" "$EXTRACTED_APP/plugins/GitSync/config/gitsync_bitbucket.php" 2>/dev/null && echo "  [OK] GitSync/gitsync_bitbucket.php"
     fi
 fi
 
@@ -194,9 +194,9 @@ if [ -n "$DB_HOST" ] && [ -z "$SKIP_MIGRATIONS" ] && [ -d "$EXTRACTED_APP" ]; th
     /orangescrum-app/osv4-prod php-cli bin/cake.php migrations migrate 2>&1
     MIGRATE_EXIT=$?
     if [ $MIGRATE_EXIT -ne 0 ]; then
-        echo "  ⚠ Migrations returned exit code $MIGRATE_EXIT, continuing..."
+        echo "  [WARNING] Migrations returned exit code $MIGRATE_EXIT, continuing..."
     else
-        echo "  ✓ Main migrations completed successfully"
+        echo "  [OK] Main migrations completed successfully"
     fi
     
     # Run plugin migrations (only for plugins in plugins folder, not vendor)
@@ -208,9 +208,9 @@ if [ -n "$DB_HOST" ] && [ -z "$SKIP_MIGRATIONS" ] && [ -d "$EXTRACTED_APP" ]; th
                 /orangescrum-app/osv4-prod php-cli bin/cake.php migrations migrate -p "$plugin_name" 2>&1
                 PLUGIN_EXIT=$?
                 if [ $PLUGIN_EXIT -ne 0 ]; then
-                    echo "  ⚠ Plugin ${plugin_name} migrations returned exit code $PLUGIN_EXIT, continuing..."
+                    echo "  [WARNING] Plugin ${plugin_name} migrations returned exit code $PLUGIN_EXIT, continuing..."
                 else
-                    echo "  ✓ Plugin ${plugin_name} migrations completed successfully"
+                    echo "  [OK] Plugin ${plugin_name} migrations completed successfully"
                 fi
             fi
         done
@@ -218,10 +218,10 @@ if [ -n "$DB_HOST" ] && [ -z "$SKIP_MIGRATIONS" ] && [ -d "$EXTRACTED_APP" ]; th
     
     cd /
     echo "==========================================="
-    echo "✓ Migrations completed"
+    echo "[OK] Migrations completed"
     echo "==========================================="
 else
-    echo "⚠ Skipping migrations (DB_HOST not set or SKIP_MIGRATIONS=1)"
+    echo "[WARNING] Skipping migrations (DB_HOST not set or SKIP_MIGRATIONS=1)"
 fi
 
 # Determine if we should run seeders
@@ -255,7 +255,7 @@ if [ "$SHOULD_SEED" = "true" ] && [ -n "$DB_HOST" ] && [ -d "$EXTRACTED_APP" ]; 
     
     # Check if psql is available
     if ! command -v psql >/dev/null 2>&1; then
-        echo "  ⚠ psql not found, skipping SQL schema operations"
+        echo "  [WARNING] psql not found, skipping SQL schema operations"
         echo "  Note: Identity column conversion and sequence reset require postgresql-client"
     fi
     
@@ -267,9 +267,9 @@ if [ "$SHOULD_SEED" = "true" ] && [ -n "$DB_HOST" ] && [ -d "$EXTRACTED_APP" ]; 
         PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "${DB_PORT:-5432}" -U "$DB_USERNAME" -d "$DB_NAME" -f "$EXTRACTED_APP/config/schema/pg_config_1.sql" 2>&1 | grep -v "NOTICE:"
         IDENTITY_EXIT=$?
         if [ $IDENTITY_EXIT -ne 0 ]; then
-            echo "  ⚠ Identity conversion completed with warnings"
+            echo "  [WARNING] Identity conversion completed with warnings"
         else
-            echo "  ✓ Identity columns converted successfully"
+            echo "  [OK] Identity columns converted successfully"
         fi
     fi
     
@@ -284,11 +284,11 @@ if [ "$SHOULD_SEED" = "true" ] && [ -n "$DB_HOST" ] && [ -d "$EXTRACTED_APP" ]; 
     
     # Check for duplicate key errors (data already exists) - this is not a failure
     if echo "$SEED_OUTPUT" | grep -q "duplicate key\|23505"; then
-        echo "  ✓ Seeders completed (existing data preserved)"
+        echo "  [OK] Seeders completed (existing data preserved)"
     elif [ $SEED_EXIT -eq 0 ]; then
-        echo "  ✓ All seeders completed successfully"
+        echo "  [OK] All seeders completed successfully"
     else
-        echo "  ⚠ Seeders completed with warnings: exit code $SEED_EXIT"
+        echo "  [WARNING] Seeders completed with warnings: exit code $SEED_EXIT"
     fi
     
     echo "==========================================="
@@ -300,15 +300,15 @@ if [ "$SHOULD_SEED" = "true" ] && [ -n "$DB_HOST" ] && [ -d "$EXTRACTED_APP" ]; 
         PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "${DB_PORT:-5432}" -U "$DB_USERNAME" -d "$DB_NAME" -f "$EXTRACTED_APP/config/schema/pg_config_2.sql" 2>&1 | grep -v "NOTICE:"
         SEQ_EXIT=$?
         if [ $SEQ_EXIT -ne 0 ]; then
-            echo "  ⚠ Sequence reset completed with warnings"
+            echo "  [WARNING] Sequence reset completed with warnings"
         else
-            echo "  ✓ Sequences reset successfully"
+            echo "  [OK] Sequences reset successfully"
         fi
     fi
     
     cd /
     echo "==========================================="
-    echo "✓ Database seeding completed!"
+    echo "[OK] Database seeding completed!"
     echo "==========================================="
 else
     if [ "$SHOULD_SEED" = "false" ] && [ "$RUN_SEEDERS" != "false" ] && [ "$SKIP_SEEDERS" != "true" ]; then
@@ -316,7 +316,7 @@ else
     elif [ "$RUN_SEEDERS" = "false" ] || [ "$SKIP_SEEDERS" = "true" ]; then
         echo "ℹ Seeders disabled via environment variable"
     elif [ -z "$DB_HOST" ] || [ ! -d "$EXTRACTED_APP" ]; then
-        echo "⚠ Cannot run seeders (DB_HOST not set or app not extracted)"
+        echo "[WARNING] Cannot run seeders (DB_HOST not set or app not extracted)"
     else
         echo "ℹ Seeders not required (set RUN_SEEDERS=true to force, RUN_SEEDERS=auto for auto-detection)"
     fi
@@ -327,10 +327,10 @@ if [ "$QUEUE_WORKER" != "true" ]; then
     echo "Starting cron daemon for recurring tasks..."
     crond -f -l 2 &
     CRON_PID=$!
-    echo "✓ Cron daemon started (PID: $CRON_PID)"
+    echo "[OK] Cron daemon started (PID: $CRON_PID)"
 fi
 
-echo "✓ Application is ready!"
+echo "[OK] Application is ready!"
 
 # Check if running as queue worker
 if [ "$QUEUE_WORKER" = "true" ]; then
@@ -358,7 +358,7 @@ else
     EXIT_CODE=$?
     
     if [ $EXIT_CODE -ne 0 ]; then
-        echo "⚠ FrankenPHP exited with code $EXIT_CODE"
+        echo "[WARNING] FrankenPHP exited with code $EXIT_CODE"
         
         # Try to get logs from extracted app if available
         if [ -n "$EXTRACTED_APP" ] && [ -d "$EXTRACTED_APP/logs" ]; then

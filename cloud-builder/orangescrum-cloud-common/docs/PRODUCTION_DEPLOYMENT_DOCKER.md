@@ -142,7 +142,7 @@ PHP_MAX_EXECUTION_TIME=300
 # Run validation script
 ./validate-env.sh
 
-# Should output: "✓ VALIDATION PASSED"
+# Should output: "[OK] VALIDATION PASSED"
 # Fix any critical errors before proceeding
 ```
 
@@ -235,7 +235,7 @@ docker compose up -d orangescrum-app
 # Watch logs to verify migration success
 docker compose logs -f orangescrum-app
 
-# Look for: "✓ Migrations completed successfully"
+# Look for: "[OK] Migrations completed successfully"
 ```
 
 ### 4.2 Deploy Application (Subsequent Runs)

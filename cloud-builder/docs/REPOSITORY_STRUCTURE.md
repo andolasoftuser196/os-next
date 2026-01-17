@@ -2,7 +2,7 @@
 
 Build system for creating static FrankenPHP binaries with embedded OrangeScrum application.
 
-## 📁 Repository Structure
+## Directory Repository Structure
 
 ```txt
 durango-builder/
@@ -21,12 +21,12 @@ durango-builder/
 ├── package/                    # TEMP: Git archive extraction target
 │   └── .gitkeep                   # (directory ignored, only .gitkeep tracked)
 │
-├── orangescrum-ee/             # 🚀 DEPLOYMENT FOLDER (distribution package)
+├── orangescrum-ee/             # DEPLOYMENT FOLDER (distribution package)
 │   ├── run.sh                      # Native binary runner script
 │   ├── .env.example               # Environment configuration template
 │   └── orangescrum-app/           # Binary output directory
 │       └── orangescrum-ee         # Final native executable (~340MB)
-│       └── orangescrum-ee         # ⚠️ IGNORED - Built binary (150+ MB)
+│       └── orangescrum-ee         # IGNORED - Built binary (150+ MB)
 │
 ├── backups/                    # TEMP: Docker volume backups
 │   └── (ignored)
@@ -40,7 +40,7 @@ durango-builder/
     └── README.md
 ```
 
-## 🔄 Build Process Flow
+## Workflow Build Process Flow
 
 ### Overview
 
@@ -101,7 +101,7 @@ The build system uses a **two-stage approach** for optimal build times:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## 🚀 Quick Start
+## Deployment Quick Start
 
 ### First-time Build (Slow ~30 min)
 
@@ -124,9 +124,9 @@ python3 build.py --skip-base
 python3 build.py --rebuild-base
 ```
 
-## 📦 What Gets Committed vs Ignored
+## Package What Gets Committed vs Ignored
 
-### ✅ Committed (Tracked by Git)
+### [OK] Committed (Tracked by Git)
 
 - Build scripts: `build.py`, `requirements.txt`
 - Docker configurations: `builder/*.Dockerfile`, `builder/docker-compose.yaml`
@@ -137,7 +137,7 @@ python3 build.py --rebuild-base
 - Configuration templates
 - `.gitkeep` files for temp directories
 
-### ❌ Ignored (Not Tracked)
+### [ERROR] Ignored (Not Tracked)
 
 - Built binary: `orangescrum-ee/orangescrum-app/orangescrum-ee`
 - Temporary source: `package/*` (except `.gitkeep`)
@@ -148,7 +148,7 @@ python3 build.py --rebuild-base
 - IDE files: `.vscode/`, `.idea/`
 - Python cache: `__pycache__/`, `*.pyc`
 
-## 🔧 Build System Components
+## Configuration Build System Components
 
 ### 1. Source Extraction (`package/`)
 
@@ -187,13 +187,13 @@ python3 build.py --rebuild-base
 
 **Features**:
 
-- ✅ Automatic database migrations
-- ✅ Intelligent seeding (idempotent)
-- ✅ Volume persistence
-- ✅ Multi-environment support
-- ✅ External/bundled database options
+- [OK] Automatic database migrations
+- [OK] Intelligent seeding (idempotent)
+- [OK] Volume persistence
+- [OK] Multi-environment support
+- [OK] External/bundled database options
 
-## 🗄️ Database Seeding
+## Database Database Seeding
 
 The entrypoint script includes automatic database seeding with safeguards:
 
@@ -220,7 +220,7 @@ Located in `durango-pg/config/schema/`:
 - `pg_config_1.sql`: Changes identity columns to allow explicit IDs
 - `pg_config_2.sql`: Resets sequences to correct next values
 
-## 🌍 Environment Configurations
+## Environment Environment Configurations
 
 ### Available Environments
 
@@ -264,7 +264,7 @@ docker compose --env-file .env.test-external-hostip up -d
 docker compose --env-file .env.test-bundled --profile bundled-db up -d
 ```
 
-## 🔍 Verification Commands
+## Verification Verification Commands
 
 ### Check Binary
 
@@ -294,7 +294,7 @@ docker logs <container> | grep "Database seeding:"
 docker exec <container> psql ... -c "SELECT nextval('actions_id_seq');"
 ```
 
-## 🛠️ Development Workflow
+## Development Development Workflow
 
 ### Making Code Changes
 
@@ -326,7 +326,7 @@ docker exec <container> psql ... -c "SELECT nextval('actions_id_seq');"
    python3 build.py
    ```
 
-## 📊 Build Times
+## Stats Build Times
 
 | Stage | First Build | Subsequent | Notes |
 |-------|------------|------------|-------|
@@ -334,7 +334,7 @@ docker exec <container> psql ... -c "SELECT nextval('actions_id_seq');"
 | App Embed | ~2 min | ~2 min | Every code change |
 | **Total** | **~32 min** | **~2 min** | Optimized workflow |
 
-## 🔒 Production Deployment
+## Security Production Deployment
 
 See [PRODUCTION_DEPLOYMENT.md](PRODUCTION_DEPLOYMENT.md) for:
 
@@ -344,14 +344,14 @@ See [PRODUCTION_DEPLOYMENT.md](PRODUCTION_DEPLOYMENT.md) for:
 - Multi-tenant setup
 - Database configuration
 
-## 📝 Additional Documentation
+## Documentation Additional Documentation
 
 - [BUILD_OPTIMIZATION.md](builder/BUILD_OPTIMIZATION.md) - Build system architecture
 - [DATABASE_TESTING.md](DATABASE_TESTING.md) - Database testing strategies
 - [PERSISTENCE_SOLUTION.md](PERSISTENCE_SOLUTION.md) - Data persistence approach
 - [VOLUME_SAFETY.md](VOLUME_SAFETY.md) - Volume backup procedures
 
-## 🤝 Contributing
+## Contributing Contributing
 
 When contributing to this build system:
 
@@ -361,7 +361,7 @@ When contributing to this build system:
 4. **Document changes**: Update relevant `.md` files
 5. **Verify builds**: Run both full and incremental builds
 
-## ⚠️ Important Notes
+## [WARNING] Important Notes
 
 - **Binary Size**: The final binary is 150+ MB (PHP + Caddy + App)
 - **Build Cache**: First build creates base image, reused for all future builds
@@ -399,6 +399,6 @@ docker logs <container> | grep -A 20 "Database seeding:"
 docker exec <container> psql ... -c "SELECT COUNT(*) FROM actions;"
 ```
 
-## 📄 License
+## License License
 
 See LICENSE file in the main repository.

@@ -45,21 +45,21 @@ check_required() {
     local description="$3"
     
     if [ -z "$var_value" ]; then
-        echo -e "${RED}✗ CRITICAL: $var_name is not set${NC}"
+        echo -e "${RED}[ERROR] CRITICAL: $var_name is not set${NC}"
         echo "  Description: $description"
         ERRORS=$((ERRORS + 1))
         return 1
     fi
     
     if [ -n "$default_value" ] && [ "$var_value" = "$default_value" ]; then
-        echo -e "${RED}✗ CRITICAL: $var_name is still using default value${NC}"
+        echo -e "${RED}[ERROR] CRITICAL: $var_name is still using default value${NC}"
         echo "  Current: $var_value"
         echo "  Description: $description"
         ERRORS=$((ERRORS + 1))
         return 1
     fi
     
-    echo -e "${GREEN}✓ $var_name is configured${NC}"
+    echo -e "${GREEN}[OK] $var_name is configured${NC}"
     return 0
 }
 
@@ -70,13 +70,13 @@ check_recommended() {
     local description="$2"
     
     if [ -z "$var_value" ]; then
-        echo -e "${YELLOW}⚠ WARNING: $var_name is not set${NC}"
+        echo -e "${YELLOW}[WARNING] WARNING: $var_name is not set${NC}"
         echo "  Description: $description"
         WARNINGS=$((WARNINGS + 1))
         return 1
     fi
     
-    echo -e "${GREEN}✓ $var_name is configured${NC}"
+    echo -e "${GREEN}[OK] $var_name is configured${NC}"
     return 0
 }
 
@@ -88,14 +88,14 @@ check_value() {
     local description="$3"
     
     if [ "$var_value" != "$expected" ]; then
-        echo -e "${YELLOW}⚠ WARNING: $var_name should be '$expected' for production${NC}"
+        echo -e "${YELLOW}[WARNING] WARNING: $var_name should be '$expected' for production${NC}"
         echo "  Current: $var_value"
         echo "  Description: $description"
         WARNINGS=$((WARNINGS + 1))
         return 1
     fi
     
-    echo -e "${GREEN}✓ $var_name is correctly set to '$expected'${NC}"
+    echo -e "${GREEN}[OK] $var_name is correctly set to '$expected'${NC}"
     return 0
 }
 
@@ -106,7 +106,7 @@ check_required "DB_PASSWORD" "changeme_in_production" "Database password"
 # Check if SECURITY_SALT is strong enough (at least 32 characters)
 if [ -n "$SECURITY_SALT" ] && [ "$SECURITY_SALT" != "__CHANGE_THIS_TO_RANDOM_STRING__" ]; then
     if [ ${#SECURITY_SALT} -lt 32 ]; then
-        echo -e "${YELLOW}⚠ WARNING: SECURITY_SALT should be at least 32 characters${NC}"
+        echo -e "${YELLOW}[WARNING] WARNING: SECURITY_SALT should be at least 32 characters${NC}"
         echo "  Current length: ${#SECURITY_SALT}"
         echo "  Generate with: openssl rand -base64 32"
         WARNINGS=$((WARNINGS + 1))
@@ -116,7 +116,7 @@ fi
 # Check if DB_PASSWORD is strong enough (at least 16 characters)
 if [ -n "$DB_PASSWORD" ] && [ "$DB_PASSWORD" != "changeme_in_production" ]; then
     if [ ${#DB_PASSWORD} -lt 16 ]; then
-        echo -e "${YELLOW}⚠ WARNING: DB_PASSWORD should be at least 16 characters${NC}"
+        echo -e "${YELLOW}[WARNING] WARNING: DB_PASSWORD should be at least 16 characters${NC}"
         echo "  Current length: ${#DB_PASSWORD}"
         echo "  Generate with: openssl rand -base64 24"
         WARNINGS=$((WARNINGS + 1))
@@ -139,17 +139,17 @@ check_recommended "REDIS_PASSWORD" "Redis authentication password (highly recomm
 
 # Check cache engine
 if [ "$CACHE_ENGINE" = "redis" ]; then
-    echo -e "${GREEN}✓ CACHE_ENGINE is set to 'redis' (recommended for production)${NC}"
+    echo -e "${GREEN}[OK] CACHE_ENGINE is set to 'redis' (recommended for production)${NC}"
 else
-    echo -e "${YELLOW}⚠ WARNING: CACHE_ENGINE is '$CACHE_ENGINE', 'redis' is recommended for production${NC}"
+    echo -e "${YELLOW}[WARNING] WARNING: CACHE_ENGINE is '$CACHE_ENGINE', 'redis' is recommended for production${NC}"
     WARNINGS=$((WARNINGS + 1))
 fi
 
 # Check queue engine
 if [ "$QUEUE_ENGINE" = "redis" ]; then
-    echo -e "${GREEN}✓ QUEUE_ENGINE is set to 'redis' (recommended for production)${NC}"
+    echo -e "${GREEN}[OK] QUEUE_ENGINE is set to 'redis' (recommended for production)${NC}"
 else
-    echo -e "${YELLOW}⚠ WARNING: QUEUE_ENGINE is '$QUEUE_ENGINE', 'redis' is recommended for production${NC}"
+    echo -e "${YELLOW}[WARNING] WARNING: QUEUE_ENGINE is '$QUEUE_ENGINE', 'redis' is recommended for production${NC}"
     WARNINGS=$((WARNINGS + 1))
 fi
 
@@ -170,7 +170,7 @@ elif [ "$EMAIL_TRANSPORT" = "smtp" ]; then
     check_required "SMTP_USERNAME" "" "SMTP username"
     check_required "SMTP_PASSWORD" "" "SMTP password"
 else
-    echo -e "${YELLOW}⚠ WARNING: EMAIL_TRANSPORT is '$EMAIL_TRANSPORT', should be 'sendgrid' or 'smtp'${NC}"
+    echo -e "${YELLOW}[WARNING] WARNING: EMAIL_TRANSPORT is '$EMAIL_TRANSPORT', should be 'sendgrid' or 'smtp'${NC}"
     WARNINGS=$((WARNINGS + 1))
 fi
 
@@ -183,7 +183,7 @@ check_recommended "FULL_BASE_URL" "Full URL of the application (e.g., https://ap
 
 # Check if running behind proxy
 if [ "$APP_BIND_IP" = "0.0.0.0" ]; then
-    echo -e "${YELLOW}⚠ WARNING: APP_BIND_IP is '0.0.0.0', consider '127.0.0.1' if behind reverse proxy${NC}"
+    echo -e "${YELLOW}[WARNING] WARNING: APP_BIND_IP is '0.0.0.0', consider '127.0.0.1' if behind reverse proxy${NC}"
     echo "  For direct internet exposure, ensure proper firewall rules are in place"
     WARNINGS=$((WARNINGS + 1))
 fi
@@ -191,9 +191,9 @@ fi
 echo ""
 echo "=== Session Configuration ==="
 if [ "$SESSION_HANDLER" = "cache" ]; then
-    echo -e "${GREEN}✓ SESSION_HANDLER is set to 'cache' (recommended for production)${NC}"
+    echo -e "${GREEN}[OK] SESSION_HANDLER is set to 'cache' (recommended for production)${NC}"
 else
-    echo -e "${YELLOW}⚠ WARNING: SESSION_HANDLER is '$SESSION_HANDLER', 'cache' is recommended for production${NC}"
+    echo -e "${YELLOW}[WARNING] WARNING: SESSION_HANDLER is '$SESSION_HANDLER', 'cache' is recommended for production${NC}"
     WARNINGS=$((WARNINGS + 1))
 fi
 
@@ -206,7 +206,7 @@ if [ "$V4_ROUTING_ENABLED" = "true" ]; then
     
     # Check if SSL verification is enabled
     if [ "$V2_ROUTING_SSL_VERIFY" != "true" ]; then
-        echo -e "${YELLOW}⚠ WARNING: V2_ROUTING_SSL_VERIFY should be 'true' in production${NC}"
+        echo -e "${YELLOW}[WARNING] WARNING: V2_ROUTING_SSL_VERIFY should be 'true' in production${NC}"
         WARNINGS=$((WARNINGS + 1))
     fi
 fi
@@ -231,14 +231,14 @@ echo "=========================================="
 echo ""
 
 if [ $ERRORS -gt 0 ]; then
-    echo -e "${RED}✗ VALIDATION FAILED${NC}"
+    echo -e "${RED}[ERROR] VALIDATION FAILED${NC}"
     echo -e "${RED}  Critical Errors: $ERRORS${NC}"
     echo -e "${YELLOW}  Warnings: $WARNINGS${NC}"
     echo ""
     echo "Fix all critical errors before deploying to production!"
     exit 1
 elif [ $WARNINGS -gt 0 ]; then
-    echo -e "${YELLOW}⚠ VALIDATION PASSED WITH WARNINGS${NC}"
+    echo -e "${YELLOW}[WARNING] VALIDATION PASSED WITH WARNINGS${NC}"
     echo -e "${GREEN}  Critical Errors: 0${NC}"
     echo -e "${YELLOW}  Warnings: $WARNINGS${NC}"
     echo ""
@@ -250,7 +250,7 @@ elif [ $WARNINGS -gt 0 ]; then
         exit 1
     fi
 else
-    echo -e "${GREEN}✓ VALIDATION PASSED${NC}"
+    echo -e "${GREEN}[OK] VALIDATION PASSED${NC}"
     echo -e "${GREEN}  All critical checks passed!${NC}"
     echo -e "${GREEN}  No warnings found.${NC}"
     echo ""

@@ -24,14 +24,14 @@ echo ""
 
 # Check if source exists
 if [ ! -d "$SOURCE_DIR" ]; then
-    echo "❌ Error: $SOURCE_DIR not found"
+    echo "[ERROR] Error: $SOURCE_DIR not found"
     echo "   Run: ./build-native.sh first"
     exit 1
 fi
 
 # Check if binary exists
 if [ ! -f "$SOURCE_DIR/orangescrum-app/$SOURCE_BINARY_NAME" ]; then
-    echo "❌ Error: Binary not found in $SOURCE_DIR/orangescrum-app/$SOURCE_BINARY_NAME"
+    echo "[ERROR] Error: Binary not found in $SOURCE_DIR/orangescrum-app/$SOURCE_BINARY_NAME"
     echo "   Run: cd .. && python build.py"
     exit 1
 fi
@@ -47,12 +47,12 @@ mkdir -p "$PACKAGE_DIR"
 echo "Packaging Native deployment..."
 
 # Copy all files from native deployment
-echo "  ✓ Copying deployment files"
+echo "  [OK] Copying deployment files"
 cp -r "$SOURCE_DIR"/* "$PACKAGE_DIR/"
 
 # Rename binary if needed
 if [ "$BINARY_NAME" != "$SOURCE_BINARY_NAME" ]; then
-    echo "  ✓ Renaming binary from '$SOURCE_BINARY_NAME' to '$BINARY_NAME'"
+    echo "  [OK] Renaming binary from '$SOURCE_BINARY_NAME' to '$BINARY_NAME'"
     mv "$PACKAGE_DIR/orangescrum-app/$SOURCE_BINARY_NAME" "$PACKAGE_DIR/orangescrum-app/$BINARY_NAME"
     chmod +x "$PACKAGE_DIR/orangescrum-app/$BINARY_NAME"
     
@@ -63,7 +63,7 @@ if [ "$BINARY_NAME" != "$SOURCE_BINARY_NAME" ]; then
     sed -i "s|orangescrum-app/$SOURCE_BINARY_NAME|orangescrum-app/$BINARY_NAME|g" "$PACKAGE_DIR/run.sh" 2>/dev/null || \
         sed -i '' "s|orangescrum-app/$SOURCE_BINARY_NAME|orangescrum-app/$BINARY_NAME|g" "$PACKAGE_DIR/run.sh"
 else
-    echo "  ✓ Keeping binary name as '$SOURCE_BINARY_NAME'"
+    echo "  [OK] Keeping binary name as '$SOURCE_BINARY_NAME'"
     chmod +x "$PACKAGE_DIR/orangescrum-app/$BINARY_NAME"
 fi
 
@@ -308,7 +308,7 @@ rm -rf "$PACKAGE_NAME"
 
 echo ""
 echo "=========================================="
-echo "✓ Native package created successfully!"
+echo "[OK] Native package created successfully!"
 echo "=========================================="
 echo ""
 echo "Location: $DIST_DIR/"

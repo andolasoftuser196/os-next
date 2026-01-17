@@ -161,7 +161,7 @@ SKIP_MIGRATIONS=0  # Set to 1 after first successful deployment
 # Run validation script
 ./validate-env.sh
 
-# Should output: "✓ VALIDATION PASSED"
+# Should output: "[OK] VALIDATION PASSED"
 ```
 
 ---
@@ -215,9 +215,9 @@ RUN_MIGRATIONS=true DAEMON=false ./run.sh
 ```
 
 **Watch for:**
-- ✓ App extracted and ready
-- ✓ Main migrations completed successfully
-- ✓ Application is ready!
+- [OK] App extracted and ready
+- [OK] Main migrations completed successfully
+- [OK] Application is ready!
 
 Press Ctrl+C after verifying successful startup.
 

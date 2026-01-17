@@ -21,14 +21,14 @@ echo ""
 
 # Check if source exists
 if [ ! -d "$SOURCE_DIR" ]; then
-    echo "❌ Error: $SOURCE_DIR not found"
+    echo "[ERROR] Error: $SOURCE_DIR not found"
     echo "   Run: ./build-docker.sh first"
     exit 1
 fi
 
 # Check if binary exists
 if [ ! -f "$SOURCE_DIR/orangescrum-app/osv4-prod" ]; then
-    echo "❌ Error: Binary not found in $SOURCE_DIR/orangescrum-app/osv4-prod"
+    echo "[ERROR] Error: Binary not found in $SOURCE_DIR/orangescrum-app/osv4-prod"
     echo "   Run: cd .. && python build.py"
     exit 1
 fi
@@ -44,7 +44,7 @@ mkdir -p "$PACKAGE_DIR"
 echo "Packaging Docker deployment..."
 
 # Copy all files from docker deployment
-echo "  ✓ Copying deployment files"
+echo "  [OK] Copying deployment files"
 cp -r "$SOURCE_DIR"/* "$PACKAGE_DIR/"
 
 # Create deployment instructions
@@ -185,7 +185,7 @@ rm -rf "$PACKAGE_NAME"
 
 echo ""
 echo "=========================================="
-echo "✓ Docker package created successfully!"
+echo "[OK] Docker package created successfully!"
 echo "=========================================="
 echo ""
 echo "Location: $DIST_DIR/"

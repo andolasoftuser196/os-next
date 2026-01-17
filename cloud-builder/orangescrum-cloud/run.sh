@@ -27,7 +27,7 @@ echo "=========================================="
 
 # Check if binary exists
 if [ ! -f "$BINARY" ]; then
-    echo "❌ FrankenPHP binary not found: $BINARY"
+    echo "[ERROR] FrankenPHP binary not found: $BINARY"
     echo "   Run: cd ../durango-builder && python build.py --skip-deploy"
     exit 1
 fi
@@ -37,16 +37,16 @@ echo ""
 echo "Performing pre-flight checks..."
 if command -v psql >/dev/null 2>&1; then
     PSQL_VERSION=$(psql --version 2>/dev/null | head -1)
-    echo "  ✓ psql found: $PSQL_VERSION"
+    echo "  [OK] psql found: $PSQL_VERSION"
 else
-    echo "  ❌ psql not found (postgresql-client not installed)"
+    echo "  [ERROR] psql not found (postgresql-client not installed)"
     echo ""
     echo "Install postgresql-client:"
     echo "  Ubuntu/Debian: sudo apt-get install postgresql-client"
     echo "  macOS:         brew install postgresql"
     echo "  Alpine:        apk add postgresql-client"
     echo ""
-    echo "⚠️  STRICT WARNING ⚠️"
+    echo "[WARNING]  STRICT WARNING [WARNING]"
     echo "════════════════════════════════════════════════════════════"
     echo "Without psql, the following will happen:"
     echo "  1. Database migrations WILL run (creating tables)"
@@ -90,9 +90,9 @@ if [ -f "$ENV_FILE" ]; then
             export "$key=$value"
         fi
     done < "$ENV_FILE"
-    echo "  ✓ Environment loaded"
+    echo "  [OK] Environment loaded"
 else
-    echo "⚠ Warning: .env file not found, using system environment only"
+    echo "[WARNING] Warning: .env file not found, using system environment only"
 fi
 
 # Override FULL_BASE_URL if not set
@@ -107,10 +107,10 @@ echo "Cleaning up old extraction directories..."
 OLD_DIRS=$(find /tmp -maxdepth 1 -name "frankenphp_*" -type d 2>/dev/null)
 if [ -n "$OLD_DIRS" ]; then
     echo "$OLD_DIRS" | while read dir; do
-        rm -rf "$dir" && echo "  ✓ Removed: $dir"
+        rm -rf "$dir" && echo "  [OK] Removed: $dir"
     done
 else
-    echo "  ✓ No old directories to clean"
+    echo "  [OK] No old directories to clean"
 fi
 
 # Start FrankenPHP in background to extract app
@@ -119,7 +119,7 @@ echo "Starting FrankenPHP server on port ${PORT}..."
 "$BINARY" php-server -r webroot -l "0.0.0.0:${PORT}" &
 FRANKENPHP_PID=$!
 
-echo "  ✓ FrankenPHP started (PID: $FRANKENPHP_PID)"
+echo "  [OK] FrankenPHP started (PID: $FRANKENPHP_PID)"
 
 # Wait for app extraction
 echo ""
@@ -128,14 +128,14 @@ EXTRACTED_APP=""
 for i in {1..30}; do
     EXTRACTED_APP=$(find /tmp -maxdepth 1 -name "frankenphp_*" -type d 2>/dev/null | head -1)
     if [ -n "$EXTRACTED_APP" ]; then
-        echo "  ✓ Found extracted app at: $EXTRACTED_APP"
+        echo "  [OK] Found extracted app at: $EXTRACTED_APP"
         break
     fi
     sleep 1
 done
 
 if [ -z "$EXTRACTED_APP" ]; then
-    echo "❌ Could not find extracted FrankenPHP app directory"
+    echo "[ERROR] Could not find extracted FrankenPHP app directory"
     kill $FRANKENPHP_PID 2>/dev/null
     exit 1
 fi
@@ -146,13 +146,13 @@ sleep 3
 # Check if FrankenPHP is still running (it may have crashed due to path mismatch)
 if ! kill -0 $FRANKENPHP_PID 2>/dev/null; then
     echo ""
-    echo "⚠ FrankenPHP crashed during extraction (expected with path mismatch)"
+    echo "[WARNING] FrankenPHP crashed during extraction (expected with path mismatch)"
     echo "  Restarting with correct extraction path..."
     
     # Start again - this time it should use the existing extracted directory
     "$BINARY" php-server -r webroot -l "0.0.0.0:${PORT}" &
     FRANKENPHP_PID=$!
-    echo "  ✓ FrankenPHP restarted (PID: $FRANKENPHP_PID)"
+    echo "  [OK] FrankenPHP restarted (PID: $FRANKENPHP_PID)"
     sleep 2
 fi
 
@@ -164,19 +164,19 @@ copy_config_file() {
     
     if [ -f "$src" ]; then
         if cp "$src" "$dst"; then
-            echo "  ✓ $name"
+            echo "  [OK] $name"
             return 0
         else
-            echo "  ❌ Failed to copy $name (permission/disk issue)"
+            echo "  [ERROR] Failed to copy $name (permission/disk issue)"
             # Try alternative: read and write
             if cat "$src" > "$dst" 2>/dev/null; then
-                echo "  ✓ $name (fallback write)"
+                echo "  [OK] $name (fallback write)"
                 return 0
             fi
             return 1
         fi
     else
-        echo "  ⚠ Source not found: $name"
+        echo "  [WARNING] Source not found: $name"
         return 1
     fi
 }
@@ -245,9 +245,9 @@ if [ "$RUN_MIGRATIONS" = "true" ] && [ -n "$DB_HOST" ]; then
     "$SCRIPT_DIR/$BINARY" php-cli bin/cake.php migrations migrate 2>&1
     MIGRATE_EXIT=$?
     if [ $MIGRATE_EXIT -ne 0 ]; then
-        echo "  ⚠ Migrations returned exit code $MIGRATE_EXIT, continuing..."
+        echo "  [WARNING] Migrations returned exit code $MIGRATE_EXIT, continuing..."
     else
-        echo "  ✓ Main migrations completed successfully"
+        echo "  [OK] Main migrations completed successfully"
     fi
     
     # Plugin migrations
@@ -259,9 +259,9 @@ if [ "$RUN_MIGRATIONS" = "true" ] && [ -n "$DB_HOST" ]; then
                 "$SCRIPT_DIR/$BINARY" php-cli bin/cake.php migrations migrate -p "$plugin_name" 2>&1
                 PLUGIN_EXIT=$?
                 if [ $PLUGIN_EXIT -ne 0 ]; then
-                    echo "  ⚠ Plugin ${plugin_name} migrations returned exit code $PLUGIN_EXIT, continuing..."
+                    echo "  [WARNING] Plugin ${plugin_name} migrations returned exit code $PLUGIN_EXIT, continuing..."
                 else
-                    echo "  ✓ Plugin ${plugin_name} migrations completed successfully"
+                    echo "  [OK] Plugin ${plugin_name} migrations completed successfully"
                 fi
             fi
         done
@@ -269,7 +269,7 @@ if [ "$RUN_MIGRATIONS" = "true" ] && [ -n "$DB_HOST" ]; then
     
     cd "$SCRIPT_DIR"
     echo "=========================================="
-    echo "✓ Migrations completed"
+    echo "[OK] Migrations completed"
     echo "=========================================="
 fi
 
@@ -288,10 +288,10 @@ elif [ "$RUN_SEEDERS" = "auto" ] || [ -z "$RUN_SEEDERS" ]; then
         echo "Checking if database needs seeding..."
         ACTION_COUNT=$(PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "${DB_PORT:-5432}" -U "$DB_USERNAME" -d "$DB_NAME" -t -c "SELECT COUNT(*) FROM actions;" 2>/dev/null | tr -d ' ')
         if [ -z "$ACTION_COUNT" ] || [ "$ACTION_COUNT" = "0" ]; then
-            echo "  ℹ Database appears empty (no actions found), will run seeders"
+            echo "  [INFO] Database appears empty (no actions found), will run seeders"
             SHOULD_SEED="true"
         else
-            echo "  ℹ Database already seeded ($ACTION_COUNT actions found), skipping seeders"
+            echo "  [INFO] Database already seeded ($ACTION_COUNT actions found), skipping seeders"
             SHOULD_SEED="false"
         fi
     fi
@@ -306,7 +306,7 @@ if [ "$SHOULD_SEED" = "true" ] && [ -n "$DB_HOST" ] && [ -d "$EXTRACTED_APP" ]; 
     
     # Check if psql is available
     if ! command -v psql >/dev/null 2>&1; then
-        echo "  ⚠ psql not found, skipping SQL schema operations"
+        echo "  [WARNING] psql not found, skipping SQL schema operations"
         echo "  Note: Identity column conversion and sequence reset require postgresql-client"
     fi
     
@@ -318,9 +318,9 @@ if [ "$SHOULD_SEED" = "true" ] && [ -n "$DB_HOST" ] && [ -d "$EXTRACTED_APP" ]; 
         PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "${DB_PORT:-5432}" -U "$DB_USERNAME" -d "$DB_NAME" -f "$EXTRACTED_APP/config/schema/pg_config_1.sql" 2>&1 | grep -v "NOTICE:"
         IDENTITY_EXIT=$?
         if [ $IDENTITY_EXIT -ne 0 ]; then
-            echo "  ⚠ Identity conversion completed with warnings"
+            echo "  [WARNING] Identity conversion completed with warnings"
         else
-            echo "  ✓ Identity columns converted successfully"
+            echo "  [OK] Identity columns converted successfully"
         fi
     fi
     
@@ -335,11 +335,11 @@ if [ "$SHOULD_SEED" = "true" ] && [ -n "$DB_HOST" ] && [ -d "$EXTRACTED_APP" ]; 
     
     # Check for duplicate key errors (data already exists) - this is not a failure
     if echo "$SEED_OUTPUT" | grep -q "duplicate key\|23505"; then
-        echo "  ✓ Seeders completed (existing data preserved)"
+        echo "  [OK] Seeders completed (existing data preserved)"
     elif [ $SEED_EXIT -eq 0 ]; then
-        echo "  ✓ All seeders completed successfully"
+        echo "  [OK] All seeders completed successfully"
     else
-        echo "  ⚠ Seeders completed with warnings: exit code $SEED_EXIT"
+        echo "  [WARNING] Seeders completed with warnings: exit code $SEED_EXIT"
     fi
     
     echo "=========================================="
@@ -351,35 +351,35 @@ if [ "$SHOULD_SEED" = "true" ] && [ -n "$DB_HOST" ] && [ -d "$EXTRACTED_APP" ]; 
         PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "${DB_PORT:-5432}" -U "$DB_USERNAME" -d "$DB_NAME" -f "$EXTRACTED_APP/config/schema/pg_config_2.sql" 2>&1 | grep -v "NOTICE:"
         SEQ_EXIT=$?
         if [ $SEQ_EXIT -ne 0 ]; then
-            echo "  ⚠ Sequence reset completed with warnings"
+            echo "  [WARNING] Sequence reset completed with warnings"
         else
-            echo "  ✓ Sequences reset successfully"
+            echo "  [OK] Sequences reset successfully"
         fi
     fi
     
     cd "$SCRIPT_DIR"
     echo "=========================================="
-    echo "✓ Database seeding completed!"
+    echo "[OK] Database seeding completed!"
     echo "=========================================="
 else
     if [ "$SHOULD_SEED" = "false" ] && [ "$RUN_SEEDERS" != "false" ] && [ "$SKIP_SEEDERS" != "true" ]; then
         echo ""
-        echo "ℹ Seeders skipped (database already initialized)"
+        echo "[INFO] Seeders skipped (database already initialized)"
     elif [ "$RUN_SEEDERS" = "false" ] || [ "$SKIP_SEEDERS" = "true" ]; then
         echo ""
-        echo "ℹ Seeders disabled via environment variable"
+        echo "[INFO] Seeders disabled via environment variable"
     elif [ -z "$DB_HOST" ] || [ ! -d "$EXTRACTED_APP" ]; then
         echo ""
-        echo "⚠ Cannot run seeders (DB_HOST not set or app not extracted)"
+        echo "[WARNING] Cannot run seeders (DB_HOST not set or app not extracted)"
     else
         echo ""
-        echo "ℹ Seeders not required (set RUN_SEEDERS=true to force, RUN_SEEDERS=auto for auto-detection)"
+        echo "[INFO] Seeders not required (set RUN_SEEDERS=true to force, RUN_SEEDERS=auto for auto-detection)"
     fi
 fi
 
 echo ""
 echo "=========================================="
-echo "✓ Application is ready!"
+echo "[OK] Application is ready!"
 echo "=========================================="
 echo ""
 echo "  URL: ${FULL_BASE_URL}"
@@ -415,7 +415,7 @@ if [ "$RUN_FOREGROUND" = "true" ]; then
     
     if [ $EXIT_CODE -ne 0 ]; then
         echo ""
-        echo "⚠ FrankenPHP exited with code $EXIT_CODE"
+        echo "[WARNING] FrankenPHP exited with code $EXIT_CODE"
         
         # Try to get logs
         if [ -d "$EXTRACTED_APP/logs" ]; then

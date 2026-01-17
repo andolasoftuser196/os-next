@@ -102,7 +102,7 @@ EOF
 
 echo ""
 echo "=========================================="
-echo "✓ Distribution packages created!"
+echo "[OK] Distribution packages created!"
 echo "=========================================="
 echo ""
 echo "Location: $DIST_DIR_ABS"

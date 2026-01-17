@@ -14,7 +14,7 @@ if [ -f "./bin/orangescrum" ]; then
 elif [ -f "./orangescrum-app/osv4-prod" ]; then
     BINARY="./orangescrum-app/osv4-prod"
 else
-    echo "❌ Binary not found"
+    echo "[ERROR] Binary not found"
     exit 1
 fi
 

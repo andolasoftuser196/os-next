@@ -19,7 +19,7 @@ echo ""
 
 # Check binary
 if [ ! -f "$BINARY" ]; then
-    echo "❌ Binary not found: $BINARY"
+    echo "[ERROR] Binary not found: $BINARY"
     echo "   Run: cd ../durango-builder && python build.py --skip-deploy"
     exit 1
 fi
@@ -30,18 +30,18 @@ rm -rf "$PACKAGE_DIR"
 mkdir -p "$PACKAGE_DIR"/{bin,config}
 
 # Copy binary
-echo "  ✓ Copying FrankenPHP binary"
+echo "  [OK] Copying FrankenPHP binary"
 cp "$BINARY" "$PACKAGE_DIR/bin/orangescrum"
 chmod +x "$PACKAGE_DIR/bin/orangescrum"
 
 # Copy configuration files
-echo "  ✓ Copying configuration files"
+echo "  [OK] Copying configuration files"
 if [ -d "./config" ]; then
     cp -r ./config/* "$PACKAGE_DIR/config/"
 fi
 
 # Copy scripts and docs
-echo "  ✓ Copying scripts and documentation"
+echo "  [OK] Copying scripts and documentation"
 cp run-native.sh "$PACKAGE_DIR/run.sh"
 chmod +x "$PACKAGE_DIR/run.sh"
 
@@ -85,7 +85,7 @@ rm -rf "$PACKAGE_DIR"
 
 echo ""
 echo "=========================================="
-echo "✓ Package created successfully!"
+echo "[OK] Package created successfully!"
 echo "=========================================="
 echo ""
 echo "Package: $OUTPUT_FILE"

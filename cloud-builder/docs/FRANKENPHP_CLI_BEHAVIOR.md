@@ -11,8 +11,8 @@ Fatal error: Failed opening required '/tmp/frankenphp_xxx/-r' (include_path='.:'
 ### Root Cause
 
 The old FrankenPHP image (`v1.4.4` and earlier) had incomplete CLI support:
-- ✅ Had `cmd.DisableFlagParsing = true`
-- ❌ Missing the actual `-r` flag handler in `cmdPHPCLI` function
+- [OK] Had `cmd.DisableFlagParsing = true`
+- [ERROR] Missing the actual `-r` flag handler in `cmdPHPCLI` function
 - Result: `-r` was treated as a filename instead of a flag
 
 The fix was merged in **v1.11.1** (PR #1559):
@@ -58,7 +58,7 @@ func cmdPHPCLI(fs caddycmd.Flags) (int, error) {
 
 ---
 
-## ✅ Correct Usage Patterns
+## [OK] Correct Usage Patterns
 
 ### 1. Run CakePHP CLI Commands
 ```bash
@@ -78,16 +78,16 @@ func cmdPHPCLI(fs caddycmd.Flags) (int, error) {
 
 ### 2. Run Inline PHP Code (With `-r` flag)
 ```bash
-# ✅ CORRECT - flag comes FIRST, code is SECOND argument
+# [OK] CORRECT - flag comes FIRST, code is SECOND argument
 ./osv4-prod php-cli -r 'echo "Hello World";'
 
-# ✅ Check PHP version
+# [OK] Check PHP version
 ./osv4-prod php-cli -r 'echo phpversion();'
 
-# ✅ List loaded extensions
+# [OK] List loaded extensions
 ./osv4-prod php-cli -r 'print_r(get_loaded_extensions());'
 
-# ✅ Get PHP info (formatted)
+# [OK] Get PHP info (formatted)
 ./osv4-prod php-cli -r 'phpinfo();' | head -50
 ```
 
@@ -110,12 +110,12 @@ func cmdPHPCLI(fs caddycmd.Flags) (int, error) {
 
 ---
 
-## ❌ Commands That DON'T Work
+## [ERROR] Commands That DON'T Work
 
 These standard PHP CLI flags are **NOT supported** with `php-cli`:
 
 ```bash
-# ❌ These will fail
+# [ERROR] These will fail
 ./osv4-prod php-cli --version          # ERROR: tries to find "--version" file
 ./osv4-prod php-cli -v                 # ERROR: tries to find "-v" file
 ./osv4-prod php-cli -m                 # ERROR: tries to find "-m" file
@@ -247,13 +247,13 @@ fi
 
 | Feature | Standard PHP CLI | FrankenPHP Embedded |
 |---------|------------------|-------------------|
-| `--version` | ✅ Works | ❌ Use `./binary --version` instead |
-| `-m` (modules) | ✅ Works | ❌ Use `-r 'print_r(get_loaded_extensions());'` |
-| `-i` (info) | ✅ Works | ❌ Use `-r 'phpinfo();'` |
-| `-r 'code'` | ✅ Works | ✅ Works |
-| Script files | ✅ Works | ✅ Works (relative to app) |
-| CakePHP CLI | ⚠️ Requires CakePHP install | ✅ Always available |
-| External dependencies | ✅ PHP + extensions needed | ❌ None needed (static binary) |
+| `--version` | [OK] Works | [ERROR] Use `./binary --version` instead |
+| `-m` (modules) | [OK] Works | [ERROR] Use `-r 'print_r(get_loaded_extensions());'` |
+| `-i` (info) | [OK] Works | [ERROR] Use `-r 'phpinfo();'` |
+| `-r 'code'` | [OK] Works | [OK] Works |
+| Script files | [OK] Works | [OK] Works (relative to app) |
+| CakePHP CLI | [WARNING] Requires CakePHP install | [OK] Always available |
+| External dependencies | [OK] PHP + extensions needed | [ERROR] None needed (static binary) |
 
 ---
 

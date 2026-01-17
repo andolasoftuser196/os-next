@@ -10,7 +10,7 @@ The FrankenPHP deployment has been reorganized to **eliminate file duplication**
 
 ```
 cloud-builder/
-├── orangescrum-cloud/              # 📦 SOURCE OF TRUTH (common files)
+├── orangescrum-cloud/              # SOURCE OF TRUTH (common files)
 │   ├── build-docker.sh             # Build Docker deployment
 │   ├── build-native.sh             # Build Native deployment
 │   ├── config/                     # Common configs
@@ -27,10 +27,10 @@ cloud-builder/
 │   └── orangescrum-app/
 │       └── osv4-prod               # Binary (built by build.py)
 │
-├── orangescrum-cloud-docker/       # 🐳 AUTO-GENERATED (do not edit)
+├── orangescrum-cloud-docker/       # AUTO-GENERATED (do not edit)
 │   └── [Built by build-docker.sh]
 │
-└── orangescrum-cloud-native/       # 🖥️  AUTO-GENERATED (do not edit)
+└── orangescrum-cloud-native/       # AUTO-GENERATED (do not edit)
     └── [Built by build-native.sh]
 ```
 
@@ -44,12 +44,12 @@ python build.py
 ```
 
 **What happens:**
-1. ✓ Archives OrangeScrum V4 app
-2. ✓ Builds FrankenPHP base image
-3. ✓ Embeds app into FrankenPHP binary
-4. ✓ Extracts binary to `orangescrum-cloud/orangescrum-app/osv4-prod`
-5. ✓ **Runs `build-docker.sh`** → Creates `orangescrum-cloud-docker/`
-6. ✓ **Runs `build-native.sh`** → Creates `orangescrum-cloud-native/`
+1. [OK] Archives OrangeScrum V4 app
+2. [OK] Builds FrankenPHP base image
+3. [OK] Embeds app into FrankenPHP binary
+4. [OK] Extracts binary to `orangescrum-cloud/orangescrum-app/osv4-prod`
+5. [OK] **Runs `build-docker.sh`** → Creates `orangescrum-cloud-docker/`
+6. [OK] **Runs `build-native.sh`** → Creates `orangescrum-cloud-native/`
 
 ### 2. What Gets Built
 
@@ -65,23 +65,23 @@ python build.py
 - Binary: `orangescrum-app/osv4-prod`
 - Output: `orangescrum-cloud-native/`
 
-## No More Duplication! 🎉
+## No More Duplication! 
 
 ### Before (Duplicated)
 ```
-❌ config/ existed in 3 places
-❌ docs/ existed in 3 places  
-❌ Helper scripts duplicated everywhere
-❌ Confusing which is the "source"
+[ERROR] config/ existed in 3 places
+[ERROR] docs/ existed in 3 places  
+[ERROR] Helper scripts duplicated everywhere
+[ERROR] Confusing which is the "source"
 ```
 
 ### After (Single Source)
 ```
-✅ config/ in orangescrum-cloud/ only
-✅ docs/ in orangescrum-cloud/ only
-✅ Helper scripts in one place
-✅ Clear: orangescrum-cloud/ is the source
-✅ Deployment folders are auto-generated
+[OK] config/ in orangescrum-cloud/ only
+[OK] docs/ in orangescrum-cloud/ only
+[OK] Helper scripts in one place
+[OK] Clear: orangescrum-cloud/ is the source
+[OK] Deployment folders are auto-generated
 ```
 
 ## Making Changes
@@ -178,16 +178,16 @@ nano .env
 
 ## Important Rules
 
-### ✅ DO:
-- ✅ Edit files in `orangescrum-cloud/`
-- ✅ Run build scripts to update deployment folders
-- ✅ Deploy from `orangescrum-cloud-docker/` or `orangescrum-cloud-native/`
-- ✅ Treat deployment folders as auto-generated
+### [OK] DO:
+- [OK] Edit files in `orangescrum-cloud/`
+- [OK] Run build scripts to update deployment folders
+- [OK] Deploy from `orangescrum-cloud-docker/` or `orangescrum-cloud-native/`
+- [OK] Treat deployment folders as auto-generated
 
-### ❌ DON'T:
-- ❌ Edit files in `orangescrum-cloud-docker/` or `orangescrum-cloud-native/`
-- ❌ Manually copy files between folders
-- ❌ Commit deployment folders to git (add to .gitignore)
+### [ERROR] DON'T:
+- [ERROR] Edit files in `orangescrum-cloud-docker/` or `orangescrum-cloud-native/`
+- [ERROR] Manually copy files between folders
+- [ERROR] Commit deployment folders to git (add to .gitignore)
 
 ## File Organization
 
@@ -226,22 +226,22 @@ nano .env
 
 ## Benefits
 
-### ✨ No Duplication
+###  No Duplication
 - Files exist in one place only
 - Updates propagate to all deployments
 - Smaller repository size
 
-### ✨ Clear Organization
+###  Clear Organization
 - Source files in `orangescrum-cloud/`
 - Generated files in deployment folders
 - Easy to understand what to edit
 
-### ✨ Automated Building
+###  Automated Building
 - `python build.py` builds everything
 - Build scripts ensure consistency
 - No manual file copying
 
-### ✨ Easy Maintenance
+###  Easy Maintenance
 - Edit once, rebuild deployments
 - Version control tracks source only
 - Clear separation of concerns

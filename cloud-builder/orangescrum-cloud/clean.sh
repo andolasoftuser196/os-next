@@ -32,7 +32,7 @@ fi
 
 if [ "$DOCKER_EXISTS" = false ] && [ "$NATIVE_EXISTS" = false ]; then
     echo ""
-    echo "✓ Nothing to clean - deployment folders don't exist"
+    echo "[OK] Nothing to clean - deployment folders don't exist"
     exit 0
 fi
 
@@ -48,18 +48,18 @@ fi
 if [ "$DOCKER_EXISTS" = true ]; then
     echo "Removing $DOCKER_DIR..."
     rm -rf "$DOCKER_DIR"
-    echo "  ✓ Removed"
+    echo "  [OK] Removed"
 fi
 
 if [ "$NATIVE_EXISTS" = true ]; then
     echo "Removing $NATIVE_DIR..."
     rm -rf "$NATIVE_DIR"
-    echo "  ✓ Removed"
+    echo "  [OK] Removed"
 fi
 
 echo ""
 echo "=========================================="
-echo "✓ Cleanup complete!"
+echo "[OK] Cleanup complete!"
 echo "=========================================="
 echo ""
 echo "To rebuild:"

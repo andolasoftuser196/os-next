@@ -5,42 +5,42 @@ This document lists all configuration files that are copied during container sta
 ## Core Application Configs
 
 ### Cache Configurations
-- ✅ `cache_redis.example.php` → `cache_redis.php` (Redis cache - recommended for production)
-- ✅ `cache_file.example.php` → `cache_file.php` (File-based cache)
-- ✅ `cache_memcached.example.php` → `cache_memcached.php` (Memcached cache)
-- ✅ `cache_auto.example.php` → `cache_auto.php` (Auto-detect cache engine)
+- [OK] `cache_redis.example.php` → `cache_redis.php` (Redis cache - recommended for production)
+- [OK] `cache_file.example.php` → `cache_file.php` (File-based cache)
+- [OK] `cache_memcached.example.php` → `cache_memcached.php` (Memcached cache)
+- [OK] `cache_auto.example.php` → `cache_auto.php` (Auto-detect cache engine)
 
 ### Queue Configurations
-- ✅ `queue.example.php` → `queue.php` (Queue backend config)
+- [OK] `queue.example.php` → `queue.php` (Queue backend config)
 
 ### Email Configurations
-- ✅ `sendgrid.example.php` → `sendgrid.php` (SendGrid email service)
-- ✅ `smtp.example.php` → `smtp.php` (SMTP email service)
+- [OK] `sendgrid.example.php` → `sendgrid.php` (SendGrid email service)
+- [OK] `smtp.example.php` → `smtp.php` (SMTP email service)
 
 ### Storage Configurations
-- ✅ `storage.example.php` → `storage.php` (S3/MinIO object storage)
-- ✅ `cloudstorage.example.php` → `cloudstorage.php` (Google Drive, Dropbox, OneDrive)
+- [OK] `storage.example.php` → `storage.php` (S3/MinIO object storage)
+- [OK] `cloudstorage.example.php` → `cloudstorage.php` (Google Drive, Dropbox, OneDrive)
 
 ### Integration Configurations
-- ✅ `recaptcha.example.php` → `recaptcha.php` (Google reCAPTCHA)
-- ✅ `google_oauth.example.php` → `google_oauth.php` (Google OAuth login)
-- ✅ `google_drive.example.php` → `google_drive.php` (Google Drive API)
-- ✅ `github.example.php` → `github.php` (GitHub OAuth & webhooks)
-- ✅ `v2_routing.example.php` → `v2_routing.php` (V2/V4 routing for migration)
+- [OK] `recaptcha.example.php` → `recaptcha.php` (Google reCAPTCHA)
+- [OK] `google_oauth.example.php` → `google_oauth.php` (Google OAuth login)
+- [OK] `google_drive.example.php` → `google_drive.php` (Google Drive API)
+- [OK] `github.example.php` → `github.php` (GitHub OAuth & webhooks)
+- [OK] `v2_routing.example.php` → `v2_routing.php` (V2/V4 routing for migration)
 
 ### App Configuration
-- ✅ `app_local.example.php` → `app_local.php` (Local overrides - from embedded app)
+- [OK] `app_local.example.php` → `app_local.php` (Local overrides - from embedded app)
 
 ## Plugin Configurations
 
 ### Payments Plugin
-- ✅ `plugins/Payments/config/stripe.example.php` → `stripe.php` (Stripe payment integration)
+- [OK] `plugins/Payments/config/stripe.example.php` → `stripe.php` (Stripe payment integration)
 
 ### GitSync Plugin
-- ✅ `plugins/GitSync/config/gitsync.example.php` → `gitsync.php` (Main GitSync config)
-- ✅ `plugins/GitSync/config/gitsync_github.example.php` → `gitsync_github.php` (GitHub integration)
-- ✅ `plugins/GitSync/config/gitsync_gitlab.example.php` → `gitsync_gitlab.php` (GitLab integration)
-- ✅ `plugins/GitSync/config/gitsync_bitbucket.example.php` → `gitsync_bitbucket.php` (Bitbucket integration)
+- [OK] `plugins/GitSync/config/gitsync.example.php` → `gitsync.php` (Main GitSync config)
+- [OK] `plugins/GitSync/config/gitsync_github.example.php` → `gitsync_github.php` (GitHub integration)
+- [OK] `plugins/GitSync/config/gitsync_gitlab.example.php` → `gitsync_gitlab.php` (GitLab integration)
+- [OK] `plugins/GitSync/config/gitsync_bitbucket.example.php` → `gitsync_bitbucket.php` (Bitbucket integration)
 
 ## Copy Process
 
@@ -77,10 +77,10 @@ To add a new configuration file:
 After deployment, check the container logs for:
 ```
 Setting up configuration files...
-  ✓ app_local.php
-  ✓ cache_redis.php
-  ✓ queue.php
+  [OK] app_local.php
+  [OK] cache_redis.php
+  [OK] queue.php
   ...
 ```
 
-Missing files will not show the ✓ checkmark but won't cause errors.
+Missing files will not show the [OK] checkmark but won't cause errors.

@@ -1,6 +1,6 @@
 # Durango Builder Repository Setup Guide
 
-## 📦 Repository Purpose
+## Package Repository Purpose
 
 The `durango-builder` repository is a **build system** that:
 
@@ -12,7 +12,7 @@ This is **NOT** the application source code repository. It's the **packaging and
 
 ---
 
-## 🏗️ Directory Roles Explained
+## Building Directory Roles Explained
 
 ### **durango-builder/package/** - TEMPORARY Source Extraction
 
@@ -26,9 +26,9 @@ This is **NOT** the application source code repository. It's the **packaging and
 
 **Status**:
 
-- ❌ **Should be IGNORED by git**
-- ✅ Only `.gitkeep` tracked
-- 🗑️ Can be deleted anytime (regenerated on build)
+- [ERROR] **Should be IGNORED by git**
+- [OK] Only `.gitkeep` tracked
+-  Can be deleted anytime (regenerated on build)
 
 **Content Example**:
 
@@ -57,9 +57,9 @@ package/
 
 **Status**:
 
-- ❌ **Should be IGNORED by git**
-- ✅ Only `.gitkeep` tracked
-- 🗑️ Can be deleted anytime (regenerated on build)
+- [ERROR] **Should be IGNORED by git**
+- [OK] Only `.gitkeep` tracked
+-  Can be deleted anytime (regenerated on build)
 
 **Why Separate?**:
 
@@ -75,21 +75,21 @@ package/
 
 **What's TRACKED**:
 
-- ✅ `run.sh` - Native binary runner script
-- ✅ `.env.example` - Configuration template
-- ✅ Directory structure
-- ✅ Configuration files
+- [OK] `run.sh` - Native binary runner script
+- [OK] `.env.example` - Configuration template
+- [OK] Directory structure
+- [OK] Configuration files
 
 **What's IGNORED**:
 
-- ❌ `orangescrum-app/orangescrum-ee` - The binary (340+ MB)
-- ❌ `.env` files (except examples)
+- [ERROR] `orangescrum-app/orangescrum-ee` - The binary (340+ MB)
+- [ERROR] `.env` files (except examples)
 
 **Status**:
 
-- 🚀 **Cloud builder deployment package**
-- 📦 **Ready for standalone deployment**
-- ✅ Commit structure, not binaries
+- Deployment **Cloud builder deployment package**
+- Package **Ready for standalone deployment**
+- [OK] Commit structure, not binaries
 
 **Content Example**:
 
@@ -104,7 +104,7 @@ orangescrum-ee/
 
 ---
 
-## 🔄 Complete Build Flow
+## Workflow Complete Build Flow
 
 ```txt
 ┌──────────────────────────────────────────────────────────────┐
@@ -150,9 +150,9 @@ orangescrum-ee/
 
 ---
 
-## 📋 What Should Be Committed
+## Checklist What Should Be Committed
 
-### ✅ DO Commit These Files
+### [OK] DO Commit These Files
 
 ```txt
 durango-builder/
@@ -178,7 +178,7 @@ durango-builder/
     └── .env.test-*
 ```
 
-### ❌ DON'T Commit These
+### [ERROR] DON'T Commit These
 
 ```txt
 durango-builder/
@@ -197,7 +197,7 @@ durango-builder/
 
 ---
 
-## 🚀 Setting Up Git Repository
+## Deployment Setting Up Git Repository
 
 ### Initialize Repository
 
@@ -233,7 +233,7 @@ git push -u origin main
 
 ---
 
-## 🔍 Verify Git Tracking
+## Verification Verify Git Tracking
 
 ### Check What's Tracked
 
@@ -256,7 +256,7 @@ git status --ignored
 
 ---
 
-## 🎯 Usage Patterns
+## Goal: Usage Patterns
 
 ### For Development (Frequent Code Changes)
 
@@ -302,7 +302,7 @@ python3 build.py
 
 ---
 
-## 💡 Key Concepts
+## Note: Key Concepts
 
 ### Why Three Package Directories?
 
@@ -334,7 +334,7 @@ python3 build.py
 
 ---
 
-## 📊 File Size Comparison
+## Stats File Size Comparison
 
 ```txt
 Repository (tracked):     ~5 MB
@@ -353,7 +353,7 @@ Total without artifacts:  ~5 MB  ← Git repo size
 
 ---
 
-## 🔧 Maintenance
+## Configuration Maintenance
 
 ### Cleaning Up
 
@@ -391,7 +391,7 @@ git commit -m "Add production environment template"
 
 ---
 
-## ✅ Pre-Commit Checklist
+## [OK] Pre-Commit Checklist
 
 Before committing changes:
 
@@ -437,7 +437,7 @@ python3 build.py
 
 ---
 
-## 📞 Questions?
+## Support Questions?
 
 See:
 

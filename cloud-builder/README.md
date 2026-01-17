@@ -99,7 +99,7 @@ docker compose up -d
 docker compose logs -f orangescrum-app
 ```
 
-📘 See [orangescrum-cloud-docker/README.md](orangescrum-cloud-docker/README.md) for complete Docker deployment guide.
+[DOCS] See [orangescrum-cloud-docker/README.md](orangescrum-cloud-docker/README.md) for complete Docker deployment guide.
 
 #### Option B: Native Deployment (Direct System Execution)
 
@@ -122,7 +122,7 @@ nano .env
 DAEMON=true ./run-native.sh &
 ```
 
-📘 See [orangescrum-cloud-native/README.md](orangescrum-cloud-native/README.md) for complete native deployment guide.
+[DOCS] See [orangescrum-cloud-native/README.md](orangescrum-cloud-native/README.md) for complete native deployment guide.
 
 **Critical Settings (both deployments):**
 
@@ -172,14 +172,14 @@ python3 build.py --clean
 
 This builder supports two deployment methods:
 
-1. **🐳 Docker Deployment** (`orangescrum-cloud-docker/`)
+1. **Docker Docker Deployment** (`orangescrum-cloud-docker/`)
    - Containerized deployment with Docker Compose
    - Includes infrastructure services (PostgreSQL, Redis, MinIO)
    - Easy orchestration and scaling
    - Recommended for most users
    - See [orangescrum-cloud-docker/README.md](orangescrum-cloud-docker/README.md)
 
-2. **🖥️ Native Deployment** (`orangescrum-cloud-native/`)
+2. **Native Native Deployment** (`orangescrum-cloud-native/`)
    - Direct system execution without containers
    - Better performance, lower overhead
    - Requires manual service configuration
@@ -207,7 +207,7 @@ The FrankenPHP binary can be deployed to:
 - **Serverless**: Cloud Run, Lambda (with container support)
 - **VPS/Bare Metal**: Any Linux server (native deployment)
 
-📘 **Production Guides:**
+[DOCS] **Production Guides:**
 - Docker: [orangescrum-cloud-docker/docs/PRODUCTION_DEPLOYMENT_DOCKER.md](orangescrum-cloud-docker/docs/PRODUCTION_DEPLOYMENT_DOCKER.md)
 - Native: [orangescrum-cloud-native/docs/PRODUCTION_DEPLOYMENT_NATIVE.md](orangescrum-cloud-native/docs/PRODUCTION_DEPLOYMENT_NATIVE.md)
 
@@ -539,10 +539,10 @@ The script will:
 ./deploy.sh
 
 # Output will show:
-# ⚠️  Some ports are already in use:
+# [WARNING]  Some ports are already in use:
 #    - APP_PORT: 8080
 # Finding alternative ports...
-#    ✓ APP_PORT: 8080 → 8081
+#    [OK] APP_PORT: 8080 → 8081
 ```
 
 **Manual Port Configuration:**

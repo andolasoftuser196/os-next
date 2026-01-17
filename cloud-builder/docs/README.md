@@ -1,12 +1,12 @@
 # Cloud Builder Documentation
 
-## 📌 Start Here
+## Start Start Here
 
-- **[CLOUD_BUILDER_README.md](../CLOUD_BUILDER_README.md)** ⭐ **Complete guide to building and running the native FrankenPHP binary**
+- **[CLOUD_BUILDER_README.md](../CLOUD_BUILDER_README.md)** Important: **Complete guide to building and running the native FrankenPHP binary**
 
 ---
 
-## 📚 Documentation
+## Documentation Documentation
 
 ### Core Documentation
 
@@ -22,7 +22,7 @@
 
 ---
 
-## 🚀 Quick Workflow
+## Deployment Quick Workflow
 
 ```
 1. Read: CLOUD_BUILDER_README.md
@@ -34,7 +34,7 @@
 
 ---
 
-## 📁 Key Files
+## Directory Key Files
 
 | File | Purpose |
 |------|---------|
@@ -55,7 +55,7 @@ Configure the connection details in `.env` file.
 
 ---
 
-## ❓ Frequently Asked Questions
+## FAQ Frequently Asked Questions
 
 **Q: Where do I start?**
 - Start with [CLOUD_BUILDER_README.md](../CLOUD_BUILDER_README.md)
@@ -78,7 +78,7 @@ Configure the connection details in `.env` file.
 
 ---
 
-## 🔗 Related Files
+## Related Related Files
 
 - **Application Configuration**: [.env](../orangescrum-ee/.env)
 - **Environment Template**: [.env.example](../orangescrum-ee/.env.example)

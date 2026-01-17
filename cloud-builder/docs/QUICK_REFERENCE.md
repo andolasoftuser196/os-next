@@ -1,16 +1,16 @@
 # Durango Builder - Quick Reference
 
-## 📁 Directory Purpose Summary
+## Directory Directory Purpose Summary
 
 | Directory | Purpose | Tracked? | Can Delete? |
 |-----------|---------|----------|-------------|
-| `builder/package/` | Temp git archive extraction + Docker context | ❌ No (only .gitkeep) | ✅ Yes |
-| `orangescrum-ee/` | **Deployment package** | ✅ Structure only | ❌ No |
-| `orangescrum-ee/orangescrum-app/orangescrum-ee` | Built binary | ❌ No | ✅ Yes (rebuild) |
-| `builder/*.Dockerfile` | Docker build configs | ✅ Yes | ❌ No |
-| `*.py` | Build scripts | ✅ Yes | ❌ No |
+| `builder/package/` | Temp git archive extraction + Docker context | [ERROR] No (only .gitkeep) | [OK] Yes |
+| `orangescrum-ee/` | **Deployment package** | [OK] Structure only | [ERROR] No |
+| `orangescrum-ee/orangescrum-app/orangescrum-ee` | Built binary | [ERROR] No | [OK] Yes (rebuild) |
+| `builder/*.Dockerfile` | Docker build configs | [OK] Yes | [ERROR] No |
+| `*.py` | Build scripts | [OK] Yes | [ERROR] No |
 
-## 🔄 Build Flow in 5 Steps
+## Workflow Build Flow in 5 Steps
 
 ```txt
 1. SOURCE (durango-pg repo)
@@ -22,7 +22,7 @@
 4. DEPLOY → orangescrum-ee/ (final container)
 ```
 
-## 🚀 Common Commands
+## Deployment Common Commands
 
 ### Build (First Time - Slow ~30min)
 
@@ -50,9 +50,9 @@ cd orangescrum-ee
 docker compose --env-file .env.production up -d
 ```
 
-## 📦 What to Commit
+## Package What to Commit
 
-✅ **DO COMMIT:**
+[OK] **DO COMMIT:**
 
 - Scripts: `*.py`, `*.sh`
 - Configs: `*.Dockerfile`, `*.yaml`
@@ -60,14 +60,14 @@ docker compose --env-file .env.production up -d
 - Structure: `.gitkeep` files
 - Deployment: `orangescrum-ee/` (without binary)
 
-❌ **DON'T COMMIT:**
+[ERROR] **DON'T COMMIT:**
 
 - Binary: `orangescrum-ee/orangescrum-app/orangescrum-ee`
 - Temp source: `builder/package/*` contents
 - Env files: `.env` (except examples)
 - Backups: `backups/*`
 
-## 🎯 Key Files
+## Goal: Key Files
 
 | File | Purpose |
 |------|---------|
@@ -76,7 +76,7 @@ docker compose --env-file .env.production up -d
 | `builder/app-embed.Dockerfile` | Stage 2: Embed app into binary |
 | `orangescrum-ee/orangescrum-ee` | Native FrankenPHP binary (built) |
 
-## 📚 Full Documentation
+## Documentation Full Documentation
 
 - [GIT_SETUP_GUIDE.md](GIT_SETUP_GUIDE.md) - Complete git setup and concepts
 - [REPOSITORY_STRUCTURE.md](REPOSITORY_STRUCTURE.md) - Detailed structure docs
