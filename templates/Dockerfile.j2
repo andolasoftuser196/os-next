@@ -4,7 +4,7 @@
 # Stage 1: Common base with Ubuntu Jammy and shared packages
 FROM ubuntu:jammy AS base-common
 
-ARG BUILDER_UID=${BUILDER_UID:-1000}
+ARG BUILDER_UID={{ builder_uid }}
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install common packages and add ondrej/php PPA
@@ -41,6 +41,7 @@ RUN sed -i "s/export APACHE_RUN_USER=www-data/export APACHE_RUN_USER=appuser/" /
 WORKDIR /var/www/html
 EXPOSE 80 443
 
+{% if include_php72 %}
 # Stage 2: PHP 7.2 specific image
 FROM base-common AS php72
 
@@ -63,7 +64,9 @@ COPY php-trust-certs.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/php-trust-certs.sh
 
 CMD ["sh", "-c", "/usr/local/bin/php-trust-certs.sh apache2ctl -D FOREGROUND"]
+{% endif %}
 
+{% if include_php83 %}
 # Stage 3: PHP 8.3 specific image
 FROM base-common AS php83
 
@@ -86,3 +89,4 @@ COPY php-trust-certs.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/php-trust-certs.sh
 
 CMD ["sh", "-c", "/usr/local/bin/php-trust-certs.sh apache2ctl -D FOREGROUND"]
+{% endif %}

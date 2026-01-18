@@ -35,6 +35,7 @@ services:
       - "traefik.http.routers.traefik-dashboard.priority=100"
 
   # Durango - PHP 8.3 + PostgreSQL
+{% if services.durango_pg %}
   durango-pg:
     build:
       context: .
@@ -71,7 +72,9 @@ services:
       - "traefik.http.routers.durango.tls=true"
       - "traefik.http.services.durango.loadbalancer.server.port=80"
 
+{% endif %}
   # OrangeScrum V4 - PHP 8.3 + PostgreSQL
+{% if services.orangescrum_v4 %}
   orangescrum-v4:
     build:
       context: .
@@ -108,7 +111,9 @@ services:
       - "traefik.http.routers.orangescrum-v4.tls=true"
       - "traefik.http.services.orangescrum-v4.loadbalancer.server.port=80"
 
+{% endif %}
   # OrangeScrum Cloud - FrankenPHP Binary (Production Cloud)
+{% if services.orangescrum_cloud %}
   orangescrum-cloud:
     build:
       context: ./cloud-builder/orangescrum-cloud
@@ -132,7 +137,9 @@ services:
       - "traefik.http.routers.orangescrum-cloud.tls=true"
       - "traefik.http.services.orangescrum-cloud.loadbalancer.server.port=80"
 
+{% endif %}
   # OrangeScrum Cloud Queue Worker
+{% if services.orangescrum_cloud_queue %}
   orangescrum-cloud-queue:
     build:
       context: ./cloud-builder/orangescrum-cloud
@@ -151,7 +158,9 @@ services:
       - postgres16
       - redis-durango
 
+{% endif %}
   # Orangescrum - PHP 7.2 + MySQL
+{% if services.orangescrum %}
   orangescrum:
     build:
       context: .
@@ -186,7 +195,9 @@ services:
       - "traefik.http.routers.orangescrum.tls=true"
       - "traefik.http.services.orangescrum.loadbalancer.server.port=80"
 
+{% endif %}
   # PostgreSQL 16 for Durango
+{% if services.postgres16 %}
   postgres16:
     image: postgres:16.10
     container_name: postgres16
@@ -207,7 +218,9 @@ services:
       timeout: 5s
       retries: 5
 
+{% endif %}
   # MySQL 8 for Orangescrum (native password, no strict mode)
+{% if services.mysql %}
   mysql:
     image: mysql:8.0
     container_name: mysql
@@ -230,7 +243,9 @@ services:
       timeout: 5s
       retries: 5
 
+{% endif %}
   # Redis for Durango Queue
+{% if services.redis_durango %}
   redis-durango:
     image: redis:7-alpine
     container_name: redis-durango
@@ -245,7 +260,9 @@ services:
       timeout: 5s
       retries: 5
 
+{% endif %}
   # Memcached for Durango
+{% if services.memcached_durango %}
   memcached-durango:
     image: memcached:1.6-alpine
     container_name: memcached-durango
@@ -255,7 +272,9 @@ services:
       durango-backend:
         ipv4_address: 172.26.0.11
 
+{% endif %}
   # Memcached for Orangescrum (separate instance to avoid key conflicts)
+{% if services.memcached_orangescrum %}
   memcached-orangescrum:
     image: memcached:1.6-alpine
     container_name: memcached-orangescrum
@@ -265,7 +284,9 @@ services:
       orangescrum-backend:
         ipv4_address: 172.27.0.11
 
+{% endif %}
   # MinIO S3-compatible storage
+{% if services.minio %}
   minio:
     image: quay.io/minio/minio:latest
     container_name: minio
@@ -301,7 +322,9 @@ services:
       timeout: 20s
       retries: 3
 
+{% endif %}
   # MailHog for email testing
+{% if services.mailhog %}
   mailhog:
     image: mailhog/mailhog
     container_name: mailhog
@@ -320,7 +343,9 @@ services:
       - "traefik.http.routers.mailhog.tls=true"
       - "traefik.http.services.mailhog.loadbalancer.server.port=8025"
 
+{% endif %}
   # Browser with VNC for testing
+{% if services.browser %}
   browser:
     image: selenium/standalone-chrome:latest
     container_name: browser
@@ -351,7 +376,7 @@ services:
     networks:
       traefik-network:
         ipv4_address: 172.25.0.100
-
+{% endif %}
 volumes:
   postgres-data:
   mysql-data:

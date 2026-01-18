@@ -37,8 +37,12 @@ fi
 DB_HOST=${DB_HOST:-mysql}
 DB_NAME=${DB_NAME:-orangescrum}
 DB_USER=${DB_USER:-osuser}
-DB_PASSWORD=${DB_PASSWORD:-ospassword}
+# support older DB_PASS variable name
+DB_PASSWORD=${DB_PASSWORD:-${DB_PASS:-ospassword}}
 MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-rootpassword}
+
+# Default: first SQL file found in os-v2/, override with DUMP_FILE env var
+DUMP_FILE=${DUMP_FILE:-$(ls os-v2/*.sql 2>/dev/null | head -n1 || true)}
 
 echo "Database Configuration:"
 echo "  Host: $DB_HOST"
@@ -60,9 +64,9 @@ wait_for_db() {
     local container=$1
     local max_attempts=30
     local attempt=1
-    
+
     echo -e "${YELLOW}Waiting for $container to be ready...${NC}"
-    
+
     while [ $attempt -le $max_attempts ]; do
         if docker compose ps $container | grep -q "healthy"; then
             echo -e "${GREEN}$container is ready!${NC}"
@@ -72,7 +76,7 @@ wait_for_db() {
         sleep 2
         attempt=$((attempt + 1))
     done
-    
+
     echo -e "${RED}Error: $container did not become ready in time${NC}"
     exit 1
 }

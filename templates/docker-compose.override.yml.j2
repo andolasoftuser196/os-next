@@ -13,33 +13,45 @@ services:
       - "${TRAEFIK_HTTP_PORT:-80}:80"
       - "${TRAEFIK_HTTPS_PORT:-443}:443"
       - "127.0.0.1:${TRAEFIK_DASHBOARD_PORT:-8080}:8080"
+{% if services.mysql %}
   # Direct MySQL access for database tools
   mysql:
     ports:
       - "127.0.0.1:${MYSQL_PORT:-3307}:3306"
+{% endif %}
 
+{% if services.postgres16 %}
   # PostgreSQL access
   postgres16:
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+{% endif %}
 
+{% if services.redis_durango %}
   # Redis access
   redis-durango:
     ports:
       - "127.0.0.1:${REDIS_PORT:-6380}:6379"
+{% endif %}
 
+{% if services.minio %}
   # MinIO S3 storage
   minio:
     ports:
       - "127.0.0.1:${MINIO_API_PORT:-9000}:9000"
       - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+{% endif %}
 
+{% if services.memcached_durango %}
   # Memcached for Durango
   memcached-durango:
     ports:
       - "127.0.0.1:${MEMCACHED_DURANGO_PORT:-11212}:11211"
-  
+{% endif %}
+
+{% if services.memcached_orangescrum %}
   # Memcached for Orangescrum
   memcached-orangescrum:
     ports:
       - "127.0.0.1:${MEMCACHED_ORANGESCRUM_PORT:-11213}:11211"
+{% endif %}

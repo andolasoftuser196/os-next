@@ -85,8 +85,8 @@ echo ""
 
 # Generate configurations
 echo -e "${BLUE}[4/6] Generating configurations for ${DOMAIN}...${NC}"
-.venv/bin/python3 generate-config.py "${DOMAIN}"
-echo -e "${GREEN}✓ Configurations generated${NC}"
+.venv/bin/python3 generate-config.py "${DOMAIN}" -y --apply-env
+echo -e "${GREEN}✓ Configurations generated and .env files applied${NC}"
 
 echo ""
 
@@ -95,8 +95,22 @@ echo -e "${BLUE}[5/6] Generating SSL certificates...${NC}"
 if [ -f "certs/${DOMAIN}.crt" ]; then
     echo -e "${YELLOW}Certificate exists, skipping...${NC}"
 else
-    ./generate-certs.sh > /dev/null 2>&1
+    ./generate-certs.sh > /dev/null 2>&1 || true
     echo -e "${GREEN}✓ SSL certificates generated${NC}"
+fi
+
+# Start services (build + up)
+echo -e "${BLUE}[6/6] Building and starting services...${NC}"
+docker compose up -d --build
+echo -e "${GREEN}✓ Services started${NC}"
+
+# Run database setup scripts (best-effort)
+echo -e "${BLUE}Setting up databases...${NC}"
+if [ -x "./setup-databases.sh" ]; then
+    ./setup-databases.sh || echo "Warning: setup-databases.sh failed"
+fi
+if [ -x "./setup-v2-database.sh" ]; then
+    ./setup-v2-database.sh || echo "Warning: setup-v2-database.sh failed"
 fi
 
 echo ""
