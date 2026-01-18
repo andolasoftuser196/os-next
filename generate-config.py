@@ -364,8 +364,18 @@ def generate_configurations(domain, dry_run=False, interactive=False):
             s = Path(src)
             if s.exists():
                 print_colored(f"✓ Env present: {src}", Colors.GREEN)
+                continue
+
+            # If missing, try to create from .env.example in the same folder
+            example = s.parent / '.env.example'
+            if example.exists():
+                try:
+                    shutil.copy2(example, s)
+                    print_colored(f"Created env from example: {s}", Colors.GREEN)
+                except Exception as e:
+                    print_colored(f"Could not create {s} from {example}: {e}", Colors.YELLOW)
             else:
-                print_colored(f"⚠ Missing env: {src} (service may not start correctly)", Colors.YELLOW)
+                print_colored(f"⚠ Missing env: {src} (no .env.example found)", Colors.YELLOW)
 
         # Ensure app logs directories exist (so apps can write logs inside mounted folders)
         for app_logs in ['apps/orangescrum-v4/logs', 'apps/orangescrum/logs', 'apps/durango-pg/logs']:
@@ -504,6 +514,19 @@ def main():
                     print_colored(f"Removed: {f}", Colors.GREEN)
             except Exception as e:
                 print_colored(f"Could not remove {f}: {e}", Colors.YELLOW)
+        # Also remove generated launcher files (desktop and bat)
+        try:
+            launcher_dir = Path('launchers')
+            if launcher_dir.exists():
+                for pattern in ('linux-*.desktop', 'windows-*.bat'):
+                    for lf in launcher_dir.glob(pattern):
+                        try:
+                            lf.unlink()
+                            print_colored(f"Removed: {lf}", Colors.GREEN)
+                        except Exception as e:
+                            print_colored(f"Could not remove {lf}: {e}", Colors.YELLOW)
+        except Exception:
+            pass
         # Also remove any generated .new files from dry-run
         try:
             new_files = list(Path('.').rglob('*.new'))
