@@ -124,7 +124,7 @@ def backup_old_domain_files(old_domain, backup_dir):
             print(f"  Archived: {file.name}")
 
 
-def generate_configurations(domain, dry_run=False):
+def generate_configurations(domain, dry_run=False, interactive=False):
     """Generate all configuration files from templates"""
     
     # Validate domain
@@ -209,6 +209,35 @@ def generate_configurations(domain, dry_run=False):
         'builder_uid': '${BUILDER_UID:-1000}',
         'lan_ip': lan_ip
     }
+    # Default services selection (enable common services)
+    context['services'] = {
+        'durango_pg': True,
+        'orangescrum_v4': True,
+        'orangescrum': True,
+        'postgres16': True,
+        'mysql': True,
+        'redis_durango': True,
+        'memcached_orangescrum': True,
+        'memcached_durango': True,
+        'minio': True,
+        'mailhog': True,
+        'browser': False
+    }
+
+    # Interactive selection of services
+    if interactive and not dry_run:
+        print_colored('\nInteractive service selection:', Colors.BLUE)
+        for key in list(context['services'].keys()):
+            default = context['services'][key]
+            try:
+                resp = input(f"Enable {key.replace('_', ' ')}? [{'Y' if default else 'y'}/n]: ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                resp = ''
+            if resp == 'n' or resp == 'no':
+                context['services'][key] = False
+            elif resp == 'y' or resp == 'yes' or resp == '':
+                context['services'][key] = True
+
     
     # Configuration files to generate
     configs = [
@@ -312,6 +341,41 @@ def generate_configurations(domain, dry_run=False):
             print_colored(f"✗ Error generating {config['label']}: {e}", Colors.RED)
             sys.exit(1)
     
+    # Attempt to place service .env files into mounted app folders so containers
+    # pick them up automatically (avoid manual host copy).
+    def safe_copy_env(src_path, target_path):
+        src = Path(src_path)
+        tgt = Path(target_path)
+        if not src.exists():
+            return False
+        # Backup existing target if present
+        if tgt.exists():
+            bkp = Path(backup_dir) / f"{tgt.name}.bak"
+            shutil.copy2(tgt, bkp)
+        tgt.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, tgt)
+        return True
+
+    # Ensure generated env files exist where docker-compose expects them:
+    required_envs = ['os-v2/.env', 'os-v4/.env', 'os-pg/.env']
+
+    if not dry_run:
+        for src in required_envs:
+            s = Path(src)
+            if s.exists():
+                print_colored(f"✓ Env present: {src}", Colors.GREEN)
+            else:
+                print_colored(f"⚠ Missing env: {src} (service may not start correctly)", Colors.YELLOW)
+
+        # Ensure app logs directories exist (so apps can write logs inside mounted folders)
+        for app_logs in ['apps/orangescrum-v4/logs', 'apps/orangescrum/logs', 'apps/durango-pg/logs']:
+            try:
+                p = Path(app_logs)
+                p.mkdir(parents=True, exist_ok=True)
+                print_colored(f"✓ Ensured logs dir: {app_logs}", Colors.GREEN)
+            except Exception:
+                print_colored(f"✗ Could not create logs dir: {app_logs}", Colors.YELLOW)
+
     # Summary
     print_header("Configuration Generation Complete!")
     print("Generated files:")
@@ -369,12 +433,34 @@ def main():
     )
     parser.add_argument(
         'domain',
+        nargs='?',
+        default=None,
         help='Base domain for the setup (e.g., ossiba.local, ossiba.com)'
+    )
+    parser.add_argument(
+        '--reset',
+        action='store_true',
+        help='Backup and remove previously generated configuration files'
     )
     parser.add_argument(
         '--dry-run',
         action='store_true',
         help='Generate .new files for review without applying'
+    )
+    parser.add_argument(
+        '-y', '--yes',
+        action='store_true',
+        help='Assume yes for prompts (no-op compatibility flag)'
+    )
+    parser.add_argument(
+        '--apply-env',
+        action='store_true',
+        help='Compatibility flag: apply generated env files (handled by generator by default)'
+    )
+    parser.add_argument(
+        '-i', '--interactive',
+        action='store_true',
+        help='Interactive mode: prompt for service selection and options'
     )
     
     args = parser.parse_args()
@@ -382,8 +468,67 @@ def main():
     # Change to script directory
     script_dir = Path(__file__).parent
     os.chdir(script_dir)
-    
-    generate_configurations(args.domain, args.dry_run)
+
+    # Handle reset operation (no domain required)
+    if args.reset:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        backup_dir = f"backups/{timestamp}"
+        print_header("Reset: backing up and removing generated files")
+        backed_up = backup_files(backup_dir)
+        if backed_up:
+            print_colored(f"Backed up {len(backed_up)} files to {backup_dir}", Colors.GREEN)
+        else:
+            print_colored("No generated config files found to backup.", Colors.YELLOW)
+
+        # Files to remove (mirror the backup list)
+        files_to_remove = [
+            'docker-compose.yml',
+            'docker-compose.override.yml',
+            'traefik/dynamic.yml',
+            'config/durango-apache.conf',
+            'config/orangescrum-apache.conf',
+            'php-trust-certs.sh',
+            'generate-certs.sh'
+        ]
+        # Also remove generated launchers for any domain patterns and env files
+        files_to_remove.extend(['os-v2/.env', 'os-v4/.env', 'os-pg/.env'])
+
+        for f in files_to_remove:
+            p = Path(f)
+            try:
+                if p.exists():
+                    if p.is_dir():
+                        shutil.rmtree(p)
+                    else:
+                        p.unlink()
+                    print_colored(f"Removed: {f}", Colors.GREEN)
+            except Exception as e:
+                print_colored(f"Could not remove {f}: {e}", Colors.YELLOW)
+        # Also remove any generated .new files from dry-run
+        try:
+            new_files = list(Path('.').rglob('*.new'))
+            for nf in new_files:
+                # Skip any files inside the backups directory to preserve archives
+                if 'backups' in nf.parts:
+                    continue
+                try:
+                    nf.unlink()
+                    print_colored(f"Removed: {nf}", Colors.GREEN)
+                except Exception as e:
+                    print_colored(f"Could not remove {nf}: {e}", Colors.YELLOW)
+        except Exception:
+            pass
+
+        print_colored("Reset complete.", Colors.BLUE)
+        sys.exit(0)
+
+    # Domain is required for normal generation
+    if not args.domain:
+        parser.print_usage()
+        print_colored("Error: domain is required unless --reset is used.", Colors.RED)
+        sys.exit(2)
+
+    generate_configurations(args.domain, args.dry_run, args.interactive)
 
 
 if __name__ == '__main__':
