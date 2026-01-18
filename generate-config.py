@@ -463,11 +463,6 @@ def main():
         help='Assume yes for prompts (no-op compatibility flag)'
     )
     parser.add_argument(
-        '--apply-env',
-        action='store_true',
-        help='Compatibility flag: apply generated env files (handled by generator by default)'
-    )
-    parser.add_argument(
         '-i', '--interactive',
         action='store_true',
         help='Interactive mode: prompt for service selection and options'

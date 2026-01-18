@@ -85,7 +85,7 @@ echo ""
 
 # Generate configurations
 echo -e "${BLUE}[4/6] Generating configurations for ${DOMAIN}...${NC}"
-.venv/bin/python3 generate-config.py "${DOMAIN}" -y --apply-env
+.venv/bin/python3 generate-config.py "${DOMAIN}" -y
 echo -e "${GREEN}✓ Configurations generated and .env files applied${NC}"
 
 echo ""
