@@ -162,14 +162,14 @@ def generate_configurations(domain, dry_run=False, interactive=False):
     print(f"LAN IP: {lan_ip}")
     print(f"Mode: {'Dry run (review only)' if dry_run else 'Apply configurations'}\n")
     
-    # Ask about docker-compose.override.yml
-    generate_override = False
-    if not dry_run:
-        try:
-            response = input("Generate docker-compose.override.yml for port mappings? (y/N): ").strip().lower()
-            generate_override = response in ['y', 'yes']
-        except (EOFError, KeyboardInterrupt):
-            print()  # New line after interrupted input
+    # # Ask about docker-compose.override.yml
+    # generate_override = False
+    # if not dry_run:
+    #     try:
+    #         response = input("Generate docker-compose.override.yml for port mappings? (y/N): ").strip().lower()
+    #         generate_override = response in ['y', 'yes']
+    #     except (EOFError, KeyboardInterrupt):
+    #         print()  # New line after interrupted input
     
     # Create backup
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -201,42 +201,182 @@ def generate_configurations(domain, dry_run=False, interactive=False):
         keep_trailing_newline=True
     )
     
+    # Generate security salt for .env files
+    try:
+        import secrets
+        security_salt = secrets.token_urlsafe(32)
+    except:
+        security_salt = subprocess.run(['openssl', 'rand', '-base64', '32'], capture_output=True, text=True).stdout.strip()
+    
     # Template context
     context = {
         'domain': domain,
         'generated_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'traefik_ip': '172.25.0.10',
         'builder_uid': '${BUILDER_UID:-1000}',
-        'lan_ip': lan_ip
+        'lan_ip': lan_ip,
+        'security_salt': security_salt
     }
-    # Default services selection (enable common services)
-    context['services'] = {
-        'durango_pg': True,
-        'orangescrum_v4': True,
-        'orangescrum': True,
-        'postgres16': True,
-        'mysql': True,
-        'redis_durango': True,
-        'memcached_orangescrum': True,
-        'memcached_durango': True,
-        'minio': True,
-        'mailhog': True,
-        'browser': False
+    # Default services selection
+    # If interactive mode: start with None (ask user)
+    # If regular mode: enable common services by default
+    if interactive and not dry_run:
+        default_services = {
+            'durango_pg': False,
+            'orangescrum_v4': False,
+            'orangescrum': False,
+            'postgres16': False,
+            'mysql': False,
+            'redis_durango': False,
+            'memcached_orangescrum': False,
+            'memcached_durango': False,
+            'minio': False,
+            'mailhog': False,
+            'browser': False
+        }
+    else:
+        # Default: enable common services
+        default_services = {
+            'durango_pg': True,
+            'orangescrum_v4': True,
+            'orangescrum': True,
+            'postgres16': True,
+            'mysql': True,
+            'redis_durango': True,
+            'memcached_orangescrum': True,
+            'memcached_durango': False,  # Use redis instead
+            'minio': False,
+            'mailhog': True,
+            'browser': False
+        }
+    
+    context['services'] = default_services
+    
+    # Service dependencies map - if a service is enabled, its dependencies must also be enabled
+    # Note: For cache/queue, pick ONE: either redis_durango OR memcached_durango (redis takes precedence)
+    service_dependencies = {
+        'orangescrum_v4': ['postgres16'],
+        'orangescrum': ['mysql'],
+        'durango_pg': ['postgres16'],
+        'minio': [],
+        'mailhog': [],
+        'browser': [],
+        'postgres16': [],
+        'mysql': [],
+        'redis_durango': [],
+        'memcached_orangescrum': [],
+        'memcached_durango': [],
     }
+    
+    # Function to resolve dependencies
+    def resolve_dependencies(services, dependencies_map):
+        """Ensure all required dependencies are enabled"""
+        changed = True
+        while changed:
+            changed = False
+            for service, deps in dependencies_map.items():
+                if services.get(service, False):  # If service is enabled
+                    for dep in deps:
+                        if not services.get(dep, False):  # And dependency is disabled
+                            services[dep] = True  # Enable it
+                            changed = True
+        return services
 
     # Interactive selection of services
     if interactive and not dry_run:
-        print_colored('\nInteractive service selection:', Colors.BLUE)
-        for key in list(context['services'].keys()):
-            default = context['services'][key]
+        print_colored('\n' + '='*60, Colors.BLUE)
+        print_colored('Interactive Service Configuration', Colors.BLUE)
+        print_colored('='*60, Colors.BLUE)
+        
+        # Step 1: Select main applications
+        print_colored('\nStep 1: Select Applications', Colors.BLUE)
+        print("Which applications do you want to run?")
+        print()
+        
+        try:
+            resp_v4 = input("  Run OrangeScrum V4 (modern version)? [y/N]: ").strip().lower()
+            context['services']['orangescrum_v4'] = resp_v4 in ['y', 'yes']
+            
+            resp_v2 = input("  Run OrangeScrum V2 (legacy version)? [y/N]: ").strip().lower()
+            context['services']['orangescrum'] = resp_v2 in ['y', 'yes']
+            
+            resp_durango = input("  Run Durango PG (self-hosted version)? [y/N]: ").strip().lower()
+            context['services']['durango_pg'] = resp_durango in ['y', 'yes']
+        except (EOFError, KeyboardInterrupt):
+            pass
+        
+        # Step 2: Configure cache/queue for V4
+        if context['services']['orangescrum_v4'] or context['services']['durango_pg']:
+            print()
+            print_colored('Step 2: Cache Engine for V4/Durango', Colors.BLUE)
+            print("For best performance, choose one cache engine:")
+            print("  - Redis: Recommended (better performance, supports distributed caching)")
+            print("  - Memcached: Simple alternative (single-node only)")
+            print()
+            
             try:
-                resp = input(f"Enable {key.replace('_', ' ')}? [{'Y' if default else 'y'}/n]: ").strip().lower()
+                cache_choice = input("  Use Redis for V4/Durango? [Y/n]: ").strip().lower()
+                if cache_choice in ['', 'y', 'yes']:
+                    context['services']['redis_durango'] = True
+                    context['services']['memcached_durango'] = False
+                else:
+                    context['services']['redis_durango'] = False
+                    context['services']['memcached_durango'] = True
             except (EOFError, KeyboardInterrupt):
-                resp = ''
-            if resp == 'n' or resp == 'no':
-                context['services'][key] = False
-            elif resp == 'y' or resp == 'yes' or resp == '':
-                context['services'][key] = True
+                context['services']['redis_durango'] = True
+        
+        # Step 3: Configure V2 Orangescrum
+        if context['services']['orangescrum']:
+            print()
+            print_colored('Step 3: Cache Engine for V2 Orangescrum', Colors.BLUE)
+            print("V2 uses Memcached for caching")
+            context['services']['memcached_orangescrum'] = True
+        
+        # Step 4: Additional services
+        if context['services']['orangescrum_v4'] or context['services']['orangescrum'] or context['services']['durango_pg']:
+            print()
+            print_colored('Step 4: Additional Services', Colors.BLUE)
+            
+            try:
+                resp_mail = input("  Enable MailHog (email testing)? [Y/n]: ").strip().lower()
+                context['services']['mailhog'] = resp_mail in ['', 'y', 'yes']
+                
+                resp_minio = input("  Enable MinIO (S3-compatible storage)? [y/N]: ").strip().lower()
+                context['services']['minio'] = resp_minio in ['y', 'yes']
+                
+                resp_browser = input("  Enable Selenium Browser (for testing)? [y/N]: ").strip().lower()
+                context['services']['browser'] = resp_browser in ['y', 'yes']
+            except (EOFError, KeyboardInterrupt):
+                context['services']['mailhog'] = True
+        
+    # Always resolve dependencies - enable any required dependencies
+    context['services'] = resolve_dependencies(context['services'], service_dependencies)
+    
+    # Show final service configuration in interactive mode
+    if interactive and not dry_run:
+        print()
+        print_colored('='*60, Colors.BLUE)
+        print_colored('Final Service Configuration', Colors.BLUE)
+        print_colored('='*60, Colors.BLUE)
+        
+        enabled = [k.replace('_', ' ').title() for k, v in context['services'].items() if v]
+        disabled = [k.replace('_', ' ').title() for k, v in context['services'].items() if not v]
+        
+        if enabled:
+            print_colored('✓ Enabled Services:', Colors.GREEN)
+            for svc in enabled:
+                print(f"  • {svc}")
+        else:
+            print_colored('⚠ No services selected', Colors.YELLOW)
+        
+        if disabled:
+            print_colored('✗ Disabled Services:', Colors.YELLOW)
+            for svc in disabled[:5]:  # Show first 5
+                print(f"  • {svc}")
+            if len(disabled) > 5:
+                print(f"  ... and {len(disabled)-5} more")
+        
+        print()
 
     
     # Configuration files to generate
@@ -294,16 +434,31 @@ def generate_configurations(domain, dry_run=False, interactive=False):
             'output': f'launchers/windows-{domain}-lan.bat',
             'label': f'launchers/windows-{domain}-lan.bat',
             'extra_context': {'target_ip': lan_ip, 'profile': 'lan'}
+        },
+        {
+            'template': 'os-v2.env.j2',
+            'output': 'os-v2/.env',
+            'label': 'os-v2/.env'
+        },
+        {
+            'template': 'os-v4.env.j2',
+            'output': 'os-v4/.env',
+            'label': 'os-v4/.env'
+        },
+        {
+            'template': 'os-pg.env.j2',
+            'output': 'os-pg/.env',
+            'label': 'os-pg/.env'
         }
     ]
     
-    # Add docker-compose.override.yml if requested
-    if generate_override:
-        configs.append({
-            'template': 'docker-compose.override.yml.j2',
-            'output': 'docker-compose.override.yml',
-            'label': 'docker-compose.override.yml'
-        })
+    # Add docker-compose.override.yml if requested (disabled for now)
+    # if generate_override:
+    #     configs.append({
+    #         'template': 'docker-compose.override.yml.j2',
+    #         'output': 'docker-compose.override.yml',
+    #         'label': 'docker-compose.override.yml'
+    #     })
     
     # Add .new suffix for dry run
     if dry_run:
@@ -356,27 +511,8 @@ def generate_configurations(domain, dry_run=False, interactive=False):
         shutil.copy2(src, tgt)
         return True
 
-    # Ensure generated env files exist where docker-compose expects them:
-    required_envs = ['os-v2/.env', 'os-v4/.env', 'os-pg/.env']
-
+    # .env files are now generated from templates above, no need to create from examples
     if not dry_run:
-        for src in required_envs:
-            s = Path(src)
-            if s.exists():
-                print_colored(f"✓ Env present: {src}", Colors.GREEN)
-                continue
-
-            # If missing, try to create from .env.example in the same folder
-            example = s.parent / '.env.example'
-            if example.exists():
-                try:
-                    shutil.copy2(example, s)
-                    print_colored(f"Created env from example: {s}", Colors.GREEN)
-                except Exception as e:
-                    print_colored(f"Could not create {s} from {example}: {e}", Colors.YELLOW)
-            else:
-                print_colored(f"⚠ Missing env: {src} (no .env.example found)", Colors.YELLOW)
-
         # Ensure app logs directories exist (so apps can write logs inside mounted folders)
         for app_logs in ['apps/orangescrum-v4/logs', 'apps/orangescrum/logs', 'apps/durango-pg/logs']:
             try:
@@ -405,12 +541,12 @@ def generate_configurations(domain, dry_run=False, interactive=False):
             print(f"  mv {src} {dest}")
     else:
         print_colored("✓ Configurations applied!", Colors.GREEN)
-        print_next_steps(domain)
+        print_next_steps(domain, context['services'])
     
     print()
 
 
-def print_next_steps(domain):
+def print_next_steps(domain, services):
     """Print next steps after configuration"""
     # Access point configuration
     access_points = [
@@ -432,7 +568,7 @@ def print_next_steps(domain):
     )
     
     template = env.get_template('next-steps.txt.j2')
-    output = template.render(domain=domain, access_points=access_points)
+    output = template.render(domain=domain, access_points=access_points, services=services)
     print(output)
 
 

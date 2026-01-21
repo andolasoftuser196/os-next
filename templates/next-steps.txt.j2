@@ -2,10 +2,16 @@
 Next steps:
   1. Generate SSL certificates: ./generate-certs.sh
   2. Start services: docker compose up -d
-  3. Run database setup: ./setup-databases.sh
-  4. Install Chrome launchers:
-     Linux:   cp launchers/linux-{{ domain }}-*.desktop ~/.local/share/applications/
-     Windows: Use launchers/windows-{{ domain }}-*.bat
+  3. Run database setup:
+{% if services.orangescrum_v4 %}
+     ./setup-v4-database.sh
+{% endif %}
+{% if services.durango_pg %}
+     ./setup-pg-database.sh
+{% endif %}
+{% if services.orangescrum %}
+     ./setup-v2-database.sh
+{% endif %}
 
 Access points:
 {% for point in access_points %}

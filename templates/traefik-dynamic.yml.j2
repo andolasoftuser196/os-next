@@ -4,17 +4,20 @@
 
 http:
   routers:
-    # Root domain redirect to www
+{% if services.orangescrum_v4 or services.orangescrum or services.durango_pg %}
+    # Root domain redirect to primary application
     root-redirect:
       rule: "Host(`{{ domain }}`)"
       middlewares:
-        - redirect-to-www
+        - redirect-root
       entryPoints:
         - websecure
       tls: {}
       priority: 150
       service: noop@internal
-    
+{% endif %}
+
+{% if services.durango_pg %}
     # Durango PG - selfhosted subdomain
     durango-pg:
       rule: "Host(`selfhosted.{{ domain }}`)"
@@ -22,8 +25,10 @@ http:
       entryPoints:
         - websecure
       tls: {}
-      priority: 100  # Higher priority than wildcards
-    
+      priority: 100
+{% endif %}
+
+{% if services.orangescrum_v4 %}
     # OrangeScrum V4 - v4 subdomain
     orangescrum-v4:
       rule: "Host(`v4.{{ domain }}`)"
@@ -31,26 +36,21 @@ http:
       entryPoints:
         - websecure
       tls: {}
-      priority: 100  # Higher priority than wildcards
-    
-    # OrangeScrum Cloud - cloud subdomain (FrankenPHP)
-    orangescrum-cloud:
-      rule: "Host(`cloud.{{ domain }}`)"
-      service: orangescrum-cloud
-      entryPoints:
-        - websecure
-      tls: {}
-      priority: 100  # Higher priority than wildcards
-    
-    # Orangescrum V2 - Wildcard for all other subdomains
+      priority: 100
+{% endif %}
+
+{% if services.orangescrum %}
+    # OrangeScrum V2 - app subdomain (and www)
     orangescrum:
-      rule: "HostRegexp(`{subdomain:[a-z0-9-]+}.{{ domain }}`) && !Host(`v4.{{ domain }}`, `cloud.{{ domain }}`, `selfhosted.{{ domain }}`, `traefik.{{ domain }}`, `storage.{{ domain }}`, `console.{{ domain }}`, `mail.{{ domain }}`)"
+      rule: "Host(`app.{{ domain }}`, `www.{{ domain }}`)"
       service: orangescrum
       entryPoints:
         - websecure
       tls: {}
-      priority: 50  # Lower priority
-    
+      priority: 100
+{% endif %}
+
+{% if services.mailhog %}
     # MailHog
     mailhog:
       rule: "Host(`mail.{{ domain }}`)"
@@ -59,7 +59,8 @@ http:
         - websecure
       tls: {}
       priority: 100
-    
+{% endif %}
+
     # Traefik Dashboard
     traefik-dashboard:
       rule: "Host(`traefik.{{ domain }}`)"
@@ -70,37 +71,42 @@ http:
       priority: 100
 
   middlewares:
-    redirect-to-www:
+{% if services.orangescrum_v4 or services.orangescrum or services.durango_pg %}
+    redirect-root:
       redirectRegex:
         regex: "^https://{{ domain }}/(.*)"
-        replacement: "https://www.{{ domain }}/${1}"
+        replacement: "https://{% if services.orangescrum_v4 %}v4{% elif services.durango_pg %}selfhosted{% elif services.orangescrum %}app{% else %}traefik{% endif %}.{{ domain }}/${1}"
         permanent: true
+{% endif %}
 
   services:
+{% if services.durango_pg %}
     durango-pg:
       loadBalancer:
         servers:
           - url: "http://durango-pg:80"
-    
+{% endif %}
+
+{% if services.orangescrum_v4 %}
     orangescrum-v4:
       loadBalancer:
         servers:
           - url: "http://orangescrum-v4:80"
-    
-    orangescrum-cloud:
-      loadBalancer:
-        servers:
-          - url: "http://orangescrum-cloud:80"
-    
+{% endif %}
+
+{% if services.orangescrum %}
     orangescrum:
       loadBalancer:
         servers:
           - url: "http://orangescrum:80"
-    
+{% endif %}
+
+{% if services.mailhog %}
     mailhog:
       loadBalancer:
         servers:
           - url: "http://mailhog:8025"
+{% endif %}
 
 tls:
   certificates:

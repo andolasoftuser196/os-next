@@ -54,7 +54,6 @@ services:
     env_file:
       - ./os-pg/.env
     environment:
-      - MEMCACHED_HOST=memcached-durango:11211
       - SSL_CERT_FILE=/usr/local/share/ca-certificates/{{ domain }}.crt
       - CURL_CA_BUNDLE=/usr/local/share/ca-certificates/{{ domain }}.crt
     networks:
@@ -64,7 +63,11 @@ services:
         ipv4_address: 172.26.0.20
     depends_on:
       - postgres16
+{% if services.memcached_durango %}
       - memcached-durango
+{% elif services.redis_durango %}
+      - redis-durango
+{% endif %}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.durango.rule=Host(`selfhosted.{{ domain }}`)"
@@ -93,7 +96,6 @@ services:
     env_file:
       - ./os-v4/.env
     environment:
-      - MEMCACHED_HOST=memcached-durango:11211
       - SSL_CERT_FILE=/usr/local/share/ca-certificates/{{ domain }}.crt
       - CURL_CA_BUNDLE=/usr/local/share/ca-certificates/{{ domain }}.crt
     networks:
@@ -103,7 +105,11 @@ services:
         ipv4_address: 172.26.0.21
     depends_on:
       - postgres16
+{% if services.memcached_durango %}
       - memcached-durango
+{% elif services.redis_durango %}
+      - redis-durango
+{% endif %}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.orangescrum-v4.rule=Host(`v4.{{ domain }}`)"

@@ -64,6 +64,54 @@ fi
 echo "✓ Environment validation completed"
 
 # ============================================
+# Database Initialization
+# ============================================
+if [ -n "$DB_HOST" ]; then
+    echo "Initializing PostgreSQL database..."
+    
+    # Wait for PostgreSQL to be ready
+    max_attempts=30
+    attempt=1
+    echo "Waiting for PostgreSQL to be ready..."
+    while [ $attempt -le $max_attempts ]; do
+        if pg_isready -h "$DB_HOST" -p "${DB_PORT:-5432}" -U postgres > /dev/null 2>&1; then
+            echo "✓ PostgreSQL is ready"
+            break
+        fi
+        if [ $attempt -eq $max_attempts ]; then
+            echo "⚠ PostgreSQL did not become ready in time, continuing anyway..."
+            break
+        fi
+        sleep 2
+        attempt=$((attempt + 1))
+    done
+    
+    # Check if database user exists
+    DB_USER_EXISTS=$(PGPASSWORD="${POSTGRES_PASSWORD:-postgres}" psql -h "$DB_HOST" -p "${DB_PORT:-5432}" -U postgres -tc "SELECT 1 FROM pg_user WHERE usename = '$DB_USERNAME';" 2>/dev/null | xargs || echo "")
+    
+    if [ -z "$DB_USER_EXISTS" ]; then
+        echo "Creating PostgreSQL user '$DB_USERNAME'..."
+        PGPASSWORD="${POSTGRES_PASSWORD:-postgres}" psql -h "$DB_HOST" -p "${DB_PORT:-5432}" -U postgres -c "CREATE USER $DB_USERNAME WITH PASSWORD '$DB_PASSWORD';" 2>/dev/null || true
+    fi
+    
+    # Check if database exists
+    DB_EXISTS=$(PGPASSWORD="${POSTGRES_PASSWORD:-postgres}" psql -h "$DB_HOST" -p "${DB_PORT:-5432}" -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME';" 2>/dev/null | xargs || echo "")
+    
+    if [ -z "$DB_EXISTS" ]; then
+        echo "Creating PostgreSQL database '$DB_NAME'..."
+        PGPASSWORD="${POSTGRES_PASSWORD:-postgres}" psql -h "$DB_HOST" -p "${DB_PORT:-5432}" -U postgres -c "CREATE DATABASE $DB_NAME OWNER $DB_USERNAME;" 2>/dev/null || true
+    fi
+    
+    # Grant privileges
+    PGPASSWORD="${POSTGRES_PASSWORD:-postgres}" psql -h "$DB_HOST" -p "${DB_PORT:-5432}" -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USERNAME;" 2>/dev/null || true
+    PGPASSWORD="${POSTGRES_PASSWORD:-postgres}" psql -h "$DB_HOST" -p "${DB_PORT:-5432}" -U postgres -d "$DB_NAME" -c "GRANT ALL ON SCHEMA public TO $DB_USERNAME;" 2>/dev/null || true
+    
+    echo "✓ PostgreSQL database setup completed"
+else
+    echo "⚠ DB_HOST not set, skipping database initialization"
+fi
+
+# ============================================
 # Setup Configuration Files
 # ============================================
 echo "Setting up configuration files..."
@@ -140,9 +188,9 @@ echo "  ✓ Permissions updated"
 # ============================================
 # Database Migrations
 # ============================================
-# Run database migrations if DB_HOST is configured and RUN_MIGRATIONS is set
-# By default, migrations are skipped in dev to avoid cache issues during startup
-if [ -n "$DB_HOST" ] && [ "$RUN_MIGRATIONS" = "true" ]; then
+# Run database migrations if DB_HOST is configured
+# Set RUN_MIGRATIONS=false to skip
+if [ -n "$DB_HOST" ] && [ "$RUN_MIGRATIONS" != "false" ]; then
     echo "==========================================="
     echo "Step 1: Running database migrations..."
     echo "==========================================="
@@ -178,7 +226,7 @@ if [ -n "$DB_HOST" ] && [ "$RUN_MIGRATIONS" = "true" ]; then
     echo "✓ Migrations completed"
     echo "==========================================="
 else
-    echo "ℹ Skipping migrations (set RUN_MIGRATIONS=true to enable)"
+    echo "ℹ Skipping migrations (set RUN_MIGRATIONS=false to disable)"
 fi
 
 # ============================================

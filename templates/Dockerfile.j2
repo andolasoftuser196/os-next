@@ -15,7 +15,10 @@ RUN apt update && \
         curl \
         zip \
         apache2 \
-        sqlite3 && \
+        sqlite3 \
+        postgresql-client \
+        mysql-client \
+        redis-tools && \
     apt clean && rm -rf /var/lib/apt/lists/*
 
 RUN apt update && \
@@ -88,5 +91,8 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
 COPY php-trust-certs.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/php-trust-certs.sh
 
-CMD ["sh", "-c", "/usr/local/bin/php-trust-certs.sh apache2ctl -D FOREGROUND"]
+COPY entrypoints/orangescrum-v4.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/orangescrum-v4.sh
+
+CMD ["/usr/local/bin/orangescrum-v4.sh"]
 {% endif %}
