@@ -79,3 +79,4 @@ temp/
 *.rar
 os-v2/*.sql
 cloud-builder/orangescrum-cloud/orangescrum-app/osv4-prod
+cloud-builder/orangescrum-cloud-common/orangescrum-app/osv4-prod
