@@ -22,3 +22,15 @@ GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO orangescrum;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO orangescrum;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO orangescrum;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO orangescrum;
+
+-- Create orangescrum_api database for Laravel API
+\c postgres
+CREATE DATABASE orangescrum_api OWNER postgres;
+
+-- Grant permissions on orangescrum_api database
+\c orangescrum_api
+GRANT ALL ON SCHEMA public TO postgres;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO postgres;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO postgres;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres;

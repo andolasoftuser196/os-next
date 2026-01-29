@@ -79,6 +79,14 @@ RUN apt install -y --no-install-recommends \
         php8.3-sqlite3 && \
     apt clean && rm -rf /var/lib/apt/lists/*
 
+# Install Node.js LTS and npm
+RUN curl -fsSL https://deb.nodesource.com/setup_lts.x -o nodesource_setup.sh && \
+    bash nodesource_setup.sh && \
+    rm nodesource_setup.sh && \
+    apt update && \
+    apt install -y nodejs && \
+    apt clean && rm -rf /var/lib/apt/lists/*
+
 # Install Composer
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
