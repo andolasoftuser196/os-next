@@ -1,0 +1,6 @@
+[begin] (fluxbox)
+[include] (/etc/X11/fluxbox/fluxbox-menu)
+
+[submenu] (Browser) {}
+  [exec] (Google Chrome) {google-chrome --no-sandbox %U} <>
+[end]

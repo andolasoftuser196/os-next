@@ -1,0 +1,5 @@
+session.menuFile: /home/seluser/.fluxbox/menu
+session.styleFile: /usr/share/fluxbox/styles/Bloe
+session.screen0.toolbar.visible: true
+session.screen0.toolbar.autoHide: false
+session.screen0.slit.autoHide: true
