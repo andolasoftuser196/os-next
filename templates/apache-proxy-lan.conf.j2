@@ -1,0 +1,233 @@
+# Apache Reverse Proxy Configuration for OrangeScrum Docker (LAN Access)
+# Domain: {{ public_domain }} (for LAN access)
+# Local Domain: {{ domain }}
+# Generated: {{ generation_date }}
+# Traefik HTTPS Port: {{ traefik_https_port }}
+#
+# This configuration can be installed on ANY Apache server on the LAN
+# The Docker setup does NOT need to be on the same machine
+#
+# Example Scenario:
+#   - Docker (Traefik) running on: {{ lan_ip }} (ports {{ traefik_http_port }}/{{ traefik_https_port }})
+#   - Apache server running on:    [APACHE_SERVER_IP] (ports 80/443) <- This config file
+#
+# Installation:
+#   1. Copy this file to Apache config:
+#      sudo cp apache-proxy-{{ public_domain | replace('.', '-') }}.conf /etc/apache2/sites-available/orangescrum-{{ public_domain | replace('.', '-') }}.conf
+#   2. Update TRAEFIK_HOST variable below to point to Docker server IP
+#   3. Update SSL certificate paths if needed
+#   4. Enable Apache modules:
+#      sudo a2enmod proxy proxy_http ssl rewrite headers
+#   5. Enable site:
+#      sudo a2ensite orangescrum-{{ public_domain | replace('.', '-') }}
+#   6. Reload Apache:
+#      sudo systemctl reload apache2
+#
+# Client Configuration (on LAN machines):
+#   Add to /etc/hosts (Linux/Mac) or C:\Windows\System32\drivers\etc\hosts (Windows):
+#   [APACHE_SERVER_IP] v4.{{ public_domain }} app.{{ public_domain }} selfhosted.{{ public_domain }} mail.{{ public_domain }}
+#   (Replace [APACHE_SERVER_IP] with the IP of the Apache server)
+
+# IMPORTANT: Set this to the IP address where Docker/Traefik is running
+# Default is the detected LAN IP, change if Apache is on a different server
+Define TRAEFIK_HOST {{ lan_ip }}
+Define TRAEFIK_HTTPS_PORT {{ traefik_https_port }}
+
+<VirtualHost *:80>
+    ServerName app.{{ public_domain }}
+    ServerAlias v4.{{ public_domain }} selfhosted.{{ public_domain }} mail.{{ public_domain }}
+    ServerAlias storage.{{ public_domain }} console.{{ public_domain }} traefik.{{ public_domain }}
+    ServerAlias *.{{ public_domain }}
+    
+    # Redirect HTTP to HTTPS
+    Redirect permanent / https://app.{{ public_domain }}/
+</VirtualHost>
+
+# Main catch-all proxy for all subdomains
+<VirtualHost *:443>
+    ServerName app.{{ public_domain }}
+    ServerAlias *.{{ public_domain }}
+    
+    SSLEngine on
+    SSLCertificateFile {{ cert_path }}/{{ public_domain }}.crt
+    SSLCertificateKeyFile {{ cert_path }}/{{ public_domain }}.key
+    
+    # Proxy to Traefik, but rewrite Host header to {{ domain }}
+    SSLProxyEngine on
+    SSLProxyVerify none
+    SSLProxyCheckPeerCN off
+    SSLProxyCheckPeerName off
+    SSLProxyCheckPeerExpire off
+    
+    # Rewrite Host header from {{ public_domain }} to {{ domain }} for Traefik routing
+    RequestHeader set Host "%{HTTP_HOST}e"
+    RequestHeader edit Host "{{ public_domain | replace('.', '\\.') }}" "{{ domain }}"
+    
+    ProxyPreserveHost Off
+    ProxyPass / https://${TRAEFIK_HOST}:${TRAEFIK_HTTPS_PORT}/
+    ProxyPassReverse / https://${TRAEFIK_HOST}:${TRAEFIK_HTTPS_PORT}/
+    
+    # Fix response headers
+    Header edit Location "{{ domain | replace('.', '\\.') }}" "{{ public_domain }}"
+    
+    # WebSocket support
+    RewriteEngine on
+    RewriteCond %{HTTP:Upgrade} websocket [NC]
+    RewriteCond %{HTTP:Connection} upgrade [NC]
+    RewriteRule ^/?(.*) "wss://${TRAEFIK_HOST}:${TRAEFIK_HTTPS_PORT}/$1" [P,L]
+    
+    # Logging
+    ErrorLog ${APACHE_LOG_DIR}/orangescrum-{{ public_domain | replace('.', '-') }}-error.log
+    CustomLog ${APACHE_LOG_DIR}/orangescrum-{{ public_domain | replace('.', '-') }}-access.log combined
+</VirtualHost>
+
+# Individual VirtualHosts for better logging
+<VirtualHost *:443>
+    ServerName v4.{{ public_domain }}
+    
+    SSLEngine on
+    SSLCertificateFile {{ cert_path }}/{{ public_domain }}.crt
+    SSLCertificateKeyFile {{ cert_path }}/{{ public_domain }}.key
+    
+    SSLProxyEngine on
+    SSLProxyVerify none
+    SSLProxyCheckPeerCN off
+    SSLProxyCheckPeerName off
+    
+    # Rewrite Host to v4.{{ domain }}
+    RequestHeader set Host "v4.{{ domain }}"
+    
+    ProxyPreserveHost Off
+    ProxyPass / https://${TRAEFIK_HOST}:${TRAEFIK_HTTPS_PORT}/
+    ProxyPassReverse / https://${TRAEFIK_HOST}:${TRAEFIK_HTTPS_PORT}/
+    
+    Header edit Location "{{ domain | replace('.', '\\.') }}" "{{ public_domain }}"
+    
+    RewriteEngine on
+    RewriteCond %{HTTP:Upgrade} websocket [NC]
+    RewriteCond %{HTTP:Connection} upgrade [NC]
+    RewriteRule ^/?(.*) "wss://${TRAEFIK_HOST}:${TRAEFIK_HTTPS_PORT}/$1" [P,L]
+    
+    ErrorLog ${APACHE_LOG_DIR}/v4-{{ public_domain | replace('.', '-') }}-error.log
+    CustomLog ${APACHE_LOG_DIR}/v4-{{ public_domain | replace('.', '-') }}-access.log combined
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName selfhosted.{{ public_domain }}
+    
+    SSLEngine on
+    SSLCertificateFile {{ cert_path }}/{{ public_domain }}.crt
+    SSLCertificateKeyFile {{ cert_path }}/{{ public_domain }}.key
+    
+    SSLProxyEngine on
+    SSLProxyVerify none
+    SSLProxyCheckPeerCN off
+    SSLProxyCheckPeerName off
+    
+    # Rewrite Host to selfhosted.{{ domain }}
+    RequestHeader set Host "selfhosted.{{ domain }}"
+    
+    ProxyPreserveHost Off
+    ProxyPass / https://${TRAEFIK_HOST}:${TRAEFIK_HTTPS_PORT}/
+    ProxyPassReverse / https://${TRAEFIK_HOST}:${TRAEFIK_HTTPS_PORT}/
+    
+    Header edit Location "{{ domain | replace('.', '\\.') }}" "{{ public_domain }}"
+    
+    RewriteEngine on
+    RewriteCond %{HTTP:Upgrade} websocket [NC]
+    RewriteCond %{HTTP:Connection} upgrade [NC]
+    RewriteRule ^/?(.*) "wss://${TRAEFIK_HOST}:${TRAEFIK_HTTPS_PORT}/$1" [P,L]
+    
+    ErrorLog ${APACHE_LOG_DIR}/selfhosted-{{ public_domain | replace('.', '-') }}-error.log
+    CustomLog ${APACHE_LOG_DIR}/selfhosted-{{ public_domain | replace('.', '-') }}-access.log combined
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName mail.{{ public_domain }}
+    
+    SSLEngine on
+    SSLCertificateFile {{ cert_path }}/{{ public_domain }}.crt
+    SSLCertificateKeyFile {{ cert_path }}/{{ public_domain }}.key
+    
+    SSLProxyEngine on
+    SSLProxyVerify none
+    SSLProxyCheckPeerCN off
+    SSLProxyCheckPeerName off
+    
+    # Rewrite Host to mail.{{ domain }}
+    RequestHeader set Host "mail.{{ domain }}"
+    
+    ProxyPreserveHost Off
+    ProxyPass / https://${TRAEFIK_HOST}:${TRAEFIK_HTTPS_PORT}/
+    ProxyPassReverse / https://${TRAEFIK_HOST}:${TRAEFIK_HTTPS_PORT}/
+    
+    Header edit Location "{{ domain | replace('.', '\\.') }}" "{{ public_domain }}"
+    
+    RewriteEngine on
+    RewriteCond %{HTTP:Upgrade} websocket [NC]
+    RewriteCond %{HTTP:Connection} upgrade [NC]
+    RewriteRule ^/?(.*) "wss://${TRAEFIK_HOST}:${TRAEFIK_HTTPS_PORT}/$1" [P,L]
+    
+    ErrorLog ${APACHE_LOG_DIR}/mail-{{ public_domain | replace('.', '-') }}-error.log
+    CustomLog ${APACHE_LOG_DIR}/mail-{{ public_domain | replace('.', '-') }}-access.log combined
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName storage.{{ public_domain }}
+    
+    SSLEngine on
+    SSLCertificateFile {{ cert_path }}/{{ public_domain }}.crt
+    SSLCertificateKeyFile {{ cert_path }}/{{ public_domain }}.key
+    
+    SSLProxyEngine on
+    SSLProxyVerify none
+    SSLProxyCheckPeerCN off
+    SSLProxyCheckPeerName off
+    
+    # Rewrite Host to storage.{{ domain }}
+    RequestHeader set Host "storage.{{ domain }}"
+    
+    ProxyPreserveHost Off
+    ProxyPass / https://${TRAEFIK_HOST}:${TRAEFIK_HTTPS_PORT}/
+    ProxyPassReverse / https://${TRAEFIK_HOST}:${TRAEFIK_HTTPS_PORT}/
+    
+    Header edit Location "{{ domain | replace('.', '\\.') }}" "{{ public_domain }}"
+    
+    RewriteEngine on
+    RewriteCond %{HTTP:Upgrade} websocket [NC]
+    RewriteCond %{HTTP:Connection} upgrade [NC]
+    RewriteRule ^/?(.*) "wss://${TRAEFIK_HOST}:${TRAEFIK_HTTPS_PORT}/$1" [P,L]
+    
+    ErrorLog ${APACHE_LOG_DIR}/storage-{{ public_domain | replace('.', '-') }}-error.log
+    CustomLog ${APACHE_LOG_DIR}/storage-{{ public_domain | replace('.', '-') }}-access.log combined
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName console.{{ public_domain }}
+    
+    SSLEngine on
+    SSLCertificateFile {{ cert_path }}/{{ public_domain }}.crt
+    SSLCertificateKeyFile {{ cert_path }}/{{ public_domain }}.key
+    
+    SSLProxyEngine on
+    SSLProxyVerify none
+    SSLProxyCheckPeerCN off
+    SSLProxyCheckPeerName off
+    
+    # Rewrite Host to console.{{ domain }}
+    RequestHeader set Host "console.{{ domain }}"
+    
+    ProxyPreserveHost Off
+    ProxyPass / https://${TRAEFIK_HOST}:${TRAEFIK_HTTPS_PORT}/
+    ProxyPassReverse / https://${TRAEFIK_HOST}:${TRAEFIK_HTTPS_PORT}/
+    
+    Header edit Location "{{ domain | replace('.', '\\.') }}" "{{ public_domain }}"
+    
+    RewriteEngine on
+    RewriteCond %{HTTP:Upgrade} websocket [NC]
+    RewriteCond %{HTTP:Connection} upgrade [NC]
+    RewriteRule ^/?(.*) "wss://${TRAEFIK_HOST}:${TRAEFIK_HTTPS_PORT}/$1" [P,L]
+    
+    ErrorLog ${APACHE_LOG_DIR}/console-{{ public_domain | replace('.', '-') }}-error.log
+    CustomLog ${APACHE_LOG_DIR}/console-{{ public_domain | replace('.', '-') }}-access.log combined
+</VirtualHost>

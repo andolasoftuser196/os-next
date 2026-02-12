@@ -1,0 +1,53 @@
+# Apache Reverse Proxy for Docker Container
+# Routes {{ public_domain|default(domain.replace('.local', '.com')) }} -> Traefik ({{ domain }})
+# This file is mounted into the Apache container
+# Generated: {{ generation_date }}
+
+ServerName localhost
+
+# Enable required modules via LoadModule (handled in docker-compose command)
+
+<VirtualHost *:80>
+    ServerName app.{{ public_domain|default(domain.replace('.local', '.com')) }}
+    ServerAlias *.{{ public_domain|default(domain.replace('.local', '.com')) }}
+    
+    # Redirect HTTP to HTTPS
+    Redirect permanent / https://app.{{ public_domain|default(domain.replace('.local', '.com')) }}/
+</VirtualHost>
+
+# Main proxy - rewrites {{ public_domain|default(domain.replace('.local', '.com')) }} to {{ domain }} for Traefik
+<VirtualHost *:443>
+    ServerName app.{{ public_domain|default(domain.replace('.local', '.com')) }}
+    ServerAlias *.{{ public_domain|default(domain.replace('.local', '.com')) }}
+    
+    SSLEngine on
+    SSLCertificateFile /certs/{{ public_domain|default(domain.replace('.local', '.com')) }}.crt
+    SSLCertificateKeyFile /certs/{{ public_domain|default(domain.replace('.local', '.com')) }}.key
+    
+    # Proxy to Traefik container
+    SSLProxyEngine on
+    SSLProxyVerify none
+    SSLProxyCheckPeerCN off
+    SSLProxyCheckPeerName off
+    SSLProxyCheckPeerExpire off
+    
+    # Rewrite Host header from {{ public_domain|default(domain.replace('.local', '.com')) }} to {{ domain }}
+    RequestHeader set Host "%{HTTP_HOST}e"
+    RequestHeader edit Host "{{ public_domain|default(domain.replace('.local', '.com'))|replace('.', '\\.') }}" "{{ domain }}"
+    
+    ProxyPreserveHost Off
+    ProxyPass / https://{{ domain_prefix }}-traefik/
+    ProxyPassReverse / https://{{ domain_prefix }}-traefik/
+    
+    # Fix response headers
+    Header edit Location "{{ domain|replace('.', '\\.') }}" "{{ public_domain|default(domain.replace('.local', '.com')) }}"
+    
+    # WebSocket support
+    RewriteEngine on
+    RewriteCond %{HTTP:Upgrade} websocket [NC]
+    RewriteCond %{HTTP:Connection} upgrade [NC]
+    RewriteRule ^/?(.*) "wss://{{ domain_prefix }}-traefik/$1" [P,L]
+    
+    ErrorLog /dev/stderr
+    CustomLog /dev/stdout combined
+</VirtualHost>

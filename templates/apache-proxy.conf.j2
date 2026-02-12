@@ -1,0 +1,191 @@
+# Apache Reverse Proxy Configuration for OrangeScrum Docker
+# Domain: {{ domain }}
+# Generated: {{ generated_date }}
+# Traefik HTTPS Port: {{ traefik_https_port }} (unique per domain)
+#
+# Installation:
+#   sudo cp apache-proxy.conf /etc/apache2/sites-available/orangescrum-{{ domain | replace('.', '-') }}.conf
+#   sudo a2ensite orangescrum-{{ domain | replace('.', '-') }}
+#   sudo systemctl reload apache2
+
+<VirtualHost *:80>
+    ServerName app.{{ domain }}
+    ServerAlias v4.{{ domain }} selfhosted.{{ domain }} mail.{{ domain }}
+    ServerAlias storage.{{ domain }} console.{{ domain }} traefik.{{ domain }}
+    ServerAlias *.{{ domain }}
+    
+    # Redirect HTTP to HTTPS
+    Redirect permanent / https://app.{{ domain }}/
+</VirtualHost>
+
+# Main catch-all proxy for all subdomains
+<VirtualHost *:443>
+    ServerName app.{{ domain }}
+    ServerAlias *.{{ domain }}
+    
+    SSLEngine on
+    SSLCertificateFile {{ cert_path }}/{{ domain }}.crt
+    SSLCertificateKeyFile {{ cert_path }}/{{ domain }}.key
+    
+    # Proxy all requests to Traefik on port {{ traefik_https_port }}
+    SSLProxyEngine on
+    SSLProxyVerify none
+    SSLProxyCheckPeerCN off
+    SSLProxyCheckPeerName off
+    SSLProxyCheckPeerExpire off
+    
+    ProxyPreserveHost On
+    ProxyPass / https://127.0.0.1:{{ traefik_https_port }}/
+    ProxyPassReverse / https://127.0.0.1:{{ traefik_https_port }}/
+    
+    # WebSocket support
+    RewriteEngine on
+    RewriteCond %{HTTP:Upgrade} websocket [NC]
+    RewriteCond %{HTTP:Connection} upgrade [NC]
+    RewriteRule ^/?(.*) "wss://127.0.0.1:{{ traefik_https_port }}/$1" [P,L]
+    
+    # Logging
+    ErrorLog ${APACHE_LOG_DIR}/orangescrum-{{ domain | replace('.', '-') }}-error.log
+    CustomLog ${APACHE_LOG_DIR}/orangescrum-{{ domain | replace('.', '-') }}-access.log combined
+</VirtualHost>
+
+# Individual VirtualHosts for better logging (optional)
+<VirtualHost *:443>
+    ServerName v4.{{ domain }}
+    
+    SSLEngine on
+    SSLCertificateFile {{ cert_path }}/{{ domain }}.crt
+    SSLCertificateKeyFile {{ cert_path }}/{{ domain }}.key
+    
+    SSLProxyEngine on
+    SSLProxyVerify none
+    SSLProxyCheckPeerCN off
+    SSLProxyCheckPeerName off
+    
+    ProxyPreserveHost On
+    ProxyPass / https://127.0.0.1:{{ traefik_https_port }}/
+    ProxyPassReverse / https://127.0.0.1:{{ traefik_https_port }}/
+    
+    RewriteEngine on
+    RewriteCond %{HTTP:Upgrade} websocket [NC]
+    RewriteCond %{HTTP:Connection} upgrade [NC]
+    RewriteRule ^/?(.*) "wss://127.0.0.1:{{ traefik_https_port }}/$1" [P,L]
+    
+    ErrorLog ${APACHE_LOG_DIR}/v4-{{ domain | replace('.', '-') }}-error.log
+    CustomLog ${APACHE_LOG_DIR}/v4-{{ domain | replace('.', '-') }}-access.log combined
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName selfhosted.{{ domain }}
+    
+    SSLEngine on
+    SSLCertificateFile {{ cert_path }}/{{ domain }}.crt
+    SSLCertificateKeyFile {{ cert_path }}/{{ domain }}.key
+    
+    SSLProxyEngine on
+    SSLProxyVerify none
+    SSLProxyCheckPeerCN off
+    SSLProxyCheckPeerName off
+    
+    ProxyPreserveHost On
+    ProxyPass / https://127.0.0.1:{{ traefik_https_port }}/
+    ProxyPassReverse / https://127.0.0.1:{{ traefik_https_port }}/
+    
+    RewriteEngine on
+    RewriteCond %{HTTP:Upgrade} websocket [NC]
+    RewriteCond %{HTTP:Connection} upgrade [NC]
+    RewriteRule ^/?(.*) "wss://127.0.0.1:{{ traefik_https_port }}/$1" [P,L]
+    
+    ErrorLog ${APACHE_LOG_DIR}/selfhosted-{{ domain | replace('.', '-') }}-error.log
+    CustomLog ${APACHE_LOG_DIR}/selfhosted-{{ domain | replace('.', '-') }}-access.log combined
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName mail.{{ domain }}
+    
+    SSLEngine on
+    SSLCertificateFile {{ cert_path }}/{{ domain }}.crt
+    SSLCertificateKeyFile {{ cert_path }}/{{ domain }}.key
+    
+    SSLProxyEngine on
+    SSLProxyVerify none
+    SSLProxyCheckPeerCN off
+    SSLProxyCheckPeerName off
+    
+    ProxyPreserveHost On
+    ProxyPass / https://127.0.0.1:{{ traefik_https_port }}/
+    ProxyPassReverse / https://127.0.0.1:{{ traefik_https_port }}/
+    
+    RewriteEngine on
+    RewriteCond %{HTTP:Upgrade} websocket [NC]
+    RewriteCond %{HTTP:Connection} upgrade [NC]
+    RewriteRule ^/?(.*) "wss://127.0.0.1:{{ traefik_https_port }}/$1" [P,L]
+    
+    ErrorLog ${APACHE_LOG_DIR}/mail-{{ domain | replace('.', '-') }}-error.log
+    CustomLog ${APACHE_LOG_DIR}/mail-{{ domain | replace('.', '-') }}-access.log combined
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName storage.{{ domain }}
+    
+    SSLEngine on
+    SSLCertificateFile {{ cert_path }}/{{ domain }}.crt
+    SSLCertificateKeyFile {{ cert_path }}/{{ domain }}.key
+    
+    SSLProxyEngine on
+    SSLProxyVerify none
+    SSLProxyCheckPeerCN off
+    SSLProxyCheckPeerName off
+    
+    ProxyPreserveHost On
+    ProxyPass / https://127.0.0.1:{{ traefik_https_port }}/
+    ProxyPassReverse / https://127.0.0.1:{{ traefik_https_port }}/
+    
+    ErrorLog ${APACHE_LOG_DIR}/storage-{{ domain | replace('.', '-') }}-error.log
+    CustomLog ${APACHE_LOG_DIR}/storage-{{ domain | replace('.', '-') }}-access.log combined
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName console.{{ domain }}
+    
+    SSLEngine on
+    SSLCertificateFile {{ cert_path }}/{{ domain }}.crt
+    SSLCertificateKeyFile {{ cert_path }}/{{ domain }}.key
+    
+    SSLProxyEngine on
+    SSLProxyVerify none
+    SSLProxyCheckPeerCN off
+    SSLProxyCheckPeerName off
+    
+    ProxyPreserveHost On
+    ProxyPass / https://127.0.0.1:{{ traefik_https_port }}/
+    ProxyPassReverse / https://127.0.0.1:{{ traefik_https_port }}/
+    
+    ErrorLog ${APACHE_LOG_DIR}/console-{{ domain | replace('.', '-') }}-error.log
+    CustomLog ${APACHE_LOG_DIR}/console-{{ domain | replace('.', '-') }}-access.log combined
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName traefik.{{ domain }}
+    
+    SSLEngine on
+    SSLCertificateFile {{ cert_path }}/{{ domain }}.crt
+    SSLCertificateKeyFile {{ cert_path }}/{{ domain }}.key
+    
+    SSLProxyEngine on
+    SSLProxyVerify none
+    SSLProxyCheckPeerCN off
+    SSLProxyCheckPeerName off
+    
+    ProxyPreserveHost On
+    ProxyPass / https://127.0.0.1:{{ traefik_https_port }}/
+    ProxyPassReverse / https://127.0.0.1:{{ traefik_https_port }}/
+    
+    RewriteEngine on
+    RewriteCond %{HTTP:Upgrade} websocket [NC]
+    RewriteCond %{HTTP:Connection} upgrade [NC]
+    RewriteRule ^/?(.*) "wss://127.0.0.1:{{ traefik_https_port }}/$1" [P,L]
+    
+    ErrorLog ${APACHE_LOG_DIR}/traefik-{{ domain | replace('.', '-') }}-error.log
+    CustomLog ${APACHE_LOG_DIR}/traefik-{{ domain | replace('.', '-') }}-access.log combined
+</VirtualHost>

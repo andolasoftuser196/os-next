@@ -64,7 +64,11 @@ def validate_domain(domain):
 def backup_files(backup_dir):
     """Backup existing configuration files"""
     files_to_backup = [
+        '.env',
         'docker-compose.yml',
+        'docker-compose.override.yml',
+        'apache-config-host/apache-proxy.conf',
+        'MULTI_TENANT.md',
         'traefik/dynamic.yml',
         'config/durango-apache.conf',
         'config/orangescrum-apache.conf',
@@ -157,6 +161,28 @@ def generate_configurations(domain, dry_run=False, interactive=False):
     except:
         lan_ip = '192.168.1.100'
     
+    # Generate unique port offset based on domain hash (for multi-tenant setups)
+    # This ensures each domain gets its own port range automatically
+    import hashlib
+    domain_hash = int(hashlib.md5(domain.encode()).hexdigest()[:4], 16)
+    port_offset = (domain_hash % 100) * 100  # Generates offsets like 0, 100, 200, ... 9900
+    
+    # Create a short prefix for container names from domain
+    # Convert domain to safe container name prefix (remove dots, keep alphanumeric)
+    domain_prefix = domain.replace('.', '-').replace('_', '-')
+    
+    # Base ports (these will be offset for each domain)
+    base_traefik_http = 8800 + port_offset
+    base_traefik_https = 8800 + port_offset + 43  # Keep the 43 offset
+    base_traefik_dashboard = 8000 + port_offset
+    base_mysql = 3300 + port_offset
+    base_postgres = 5400 + port_offset
+    base_redis = 6300 + port_offset
+    base_minio_api = 9000 + port_offset
+    base_minio_console = 9000 + port_offset + 1
+    base_memcached_durango = 11200 + port_offset
+    base_memcached_orangescrum = 11200 + port_offset + 1
+    
     print_header("OrangeScrum Docker Configuration Generator")
     print(f"Domain: {domain}")
     print(f"LAN IP: {lan_ip}")
@@ -211,11 +237,24 @@ def generate_configurations(domain, dry_run=False, interactive=False):
     # Template context
     context = {
         'domain': domain,
+        'domain_prefix': domain_prefix,
+        'public_domain': domain.replace('.local', '.com'),  # For LAN access (ossiba.local -> ossiba.com)
+        'generation_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'generated_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'traefik_ip': '172.25.0.10',
         'builder_uid': '${BUILDER_UID:-1000}',
         'lan_ip': lan_ip,
-        'security_salt': security_salt
+        'security_salt': security_salt,
+        'port_offset': port_offset,
+        'traefik_http_port': base_traefik_http,
+        'traefik_https_port': base_traefik_https,
+        'traefik_dashboard_port': base_traefik_dashboard,
+        'mysql_port': base_mysql,
+        'postgres_port': base_postgres,
+        'redis_port': base_redis,
+        'minio_api_port': base_minio_api,
+        'minio_console_port': base_minio_console,
+        'memcached_durango_port': base_memcached_durango,
+        'memcached_orangescrum_port': base_memcached_orangescrum
     }
     # Default services selection
     # If interactive mode: start with None (ask user)
@@ -382,9 +421,36 @@ def generate_configurations(domain, dry_run=False, interactive=False):
     # Configuration files to generate
     configs = [
         {
+            'template': '.env.j2',
+            'output': '.env',
+            'label': '.env'
+        },
+        {
             'template': 'docker-compose.yml.j2',
             'output': 'docker-compose.yml',
             'label': 'docker-compose.yml'
+        },
+        {
+            'template': 'docker-compose.override.yml.j2',
+            'output': 'docker-compose.override.yml',
+            'label': 'docker-compose.override.yml'
+        },
+        {
+            'template': 'apache-proxy.conf.j2',
+            'output': 'apache-config-host/apache-proxy.conf',
+            'label': 'apache-config-host/apache-proxy.conf',
+            'extra_context': {'cert_path': str(Path.cwd() / 'certs')}
+        },
+        {
+            'template': 'apache-proxy-lan.conf.j2',
+            'output': f'apache-config-host/apache-proxy-{domain.replace(".local", ".com").replace(".", "-")}.conf',
+            'label': f'apache-config-host/apache-proxy-{domain.replace(".local", ".com")}.conf',
+            'extra_context': {'cert_path': str(Path.cwd() / 'certs')}
+        },
+        {
+            'template': 'MULTI_TENANT.md.j2',
+            'output': 'MULTI_TENANT.md',
+            'label': 'MULTI_TENANT.md'
         },
         {
             'template': 'traefik-dynamic.yml.j2',
@@ -449,16 +515,13 @@ def generate_configurations(domain, dry_run=False, interactive=False):
             'template': 'os-pg.env.j2',
             'output': 'os-pg/.env',
             'label': 'os-pg/.env'
+        },
+        {
+            'template': 'apache-proxy-container.conf.j2',
+            'output': 'apache-config-host/apache-proxy-container.conf',
+            'label': 'apache-config-host/apache-proxy-container.conf'
         }
     ]
-    
-    # Add docker-compose.override.yml if requested (disabled for now)
-    # if generate_override:
-    #     configs.append({
-    #         'template': 'docker-compose.override.yml.j2',
-    #         'output': 'docker-compose.override.yml',
-    #         'label': 'docker-compose.override.yml'
-    #     })
     
     # Add .new suffix for dry run
     if dry_run:
@@ -623,8 +686,11 @@ def main():
 
         # Files to remove (mirror the backup list)
         files_to_remove = [
+            '.env',
             'docker-compose.yml',
             'docker-compose.override.yml',
+            'apache-config-host/apache-proxy.conf',
+            'MULTI_TENANT.md',
             'traefik/dynamic.yml',
             'config/durango-apache.conf',
             'config/orangescrum-apache.conf',

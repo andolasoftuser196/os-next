@@ -58,6 +58,66 @@ echo "✓ SSL certificate generated successfully!"
 echo "  Certificate: $CERT_DIR/$DOMAIN.crt"
 echo "  Private Key: $CERT_DIR/$DOMAIN.key"
 echo ""
+
+# Also generate certificate for public domain (for LAN access)
+PUBLIC_DOMAIN="{{ public_domain }}"
+
+if [ "$PUBLIC_DOMAIN" != "$DOMAIN" ]; then
+    echo "Generating self-signed SSL certificate for *.$PUBLIC_DOMAIN (LAN access)..."
+    
+    # Generate private key for public domain
+    openssl genrsa -out "$CERT_DIR/$PUBLIC_DOMAIN.key" 2048
+    
+    # Create OpenSSL config for public domain
+    cat > "$CERT_DIR/openssl-public.cnf" <<EOF
+[req]
+default_bits = 2048
+prompt = no
+default_md = sha256
+distinguished_name = dn
+req_extensions = v3_req
+
+[dn]
+C=US
+ST=State
+L=City
+O=Organization
+OU=Development
+CN=*.$PUBLIC_DOMAIN
+
+[v3_req]
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = $PUBLIC_DOMAIN
+DNS.2 = *.$PUBLIC_DOMAIN
+DNS.3 = v4.$PUBLIC_DOMAIN
+DNS.4 = mail.$PUBLIC_DOMAIN
+DNS.5 = www.$PUBLIC_DOMAIN
+DNS.6 = app.$PUBLIC_DOMAIN
+DNS.7 = selfhosted.$PUBLIC_DOMAIN
+DNS.8 = storage.$PUBLIC_DOMAIN
+DNS.9 = console.$PUBLIC_DOMAIN
+DNS.10 = traefik.$PUBLIC_DOMAIN
+EOF
+    
+    # Generate certificate for public domain
+    openssl req -new -x509 -key "$CERT_DIR/$PUBLIC_DOMAIN.key" \
+        -out "$CERT_DIR/$PUBLIC_DOMAIN.crt" \
+        -days 365 \
+        -config "$CERT_DIR/openssl-public.cnf" \
+        -extensions v3_req
+    
+    # Set proper permissions
+    chmod 644 "$CERT_DIR/$PUBLIC_DOMAIN.crt"
+    chmod 600 "$CERT_DIR/$PUBLIC_DOMAIN.key"
+    
+    echo "✓ Public domain SSL certificate generated successfully!"
+    echo "  Certificate: $CERT_DIR/$PUBLIC_DOMAIN.crt"
+    echo "  Private Key: $CERT_DIR/$PUBLIC_DOMAIN.key"
+    echo ""
+fi
+
 echo "To trust this certificate in your browser:"
 echo "  - Chrome/Edge: Import $CERT_DIR/$DOMAIN.crt to 'Trusted Root Certification Authorities'"
 echo "  - Firefox: Settings -> Privacy & Security -> Certificates -> Import"

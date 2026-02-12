@@ -8,7 +8,7 @@ services:
   # Traefik reverse proxy with SSL
   traefik:
     image: traefik:v2.10
-    container_name: traefik
+    container_name: {{ domain_prefix }}-traefik
     restart: unless-stopped
     command:
       - "--api.dashboard=true"
@@ -27,7 +27,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       traefik-network:
-        ipv4_address: {{ traefik_ip }}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.{{ domain }}`)"
@@ -45,7 +44,7 @@ services:
       target: php83
       args:
         BUILDER_UID: {{ builder_uid }}
-    container_name: durango-pg
+    container_name: {{ domain_prefix }}-durango-pg
     restart: unless-stopped
     working_dir: /var/www/html
     volumes:
@@ -60,9 +59,7 @@ services:
       - CURL_CA_BUNDLE=/usr/local/share/ca-certificates/{{ domain }}.crt
     networks:
       traefik-network:
-        ipv4_address: 172.25.0.20
       durango-backend:
-        ipv4_address: 172.26.0.20
     depends_on:
       - postgres16
 {% if services.memcached_durango %}
@@ -87,7 +84,7 @@ services:
       target: php83
       args:
         BUILDER_UID: {{ builder_uid }}
-    container_name: orangescrum-v4
+    container_name: {{ domain_prefix }}-orangescrum-v4
     restart: unless-stopped
     working_dir: /var/www/html
     volumes:
@@ -102,9 +99,7 @@ services:
       - CURL_CA_BUNDLE=/usr/local/share/ca-certificates/{{ domain }}.crt
     networks:
       traefik-network:
-        ipv4_address: 172.25.0.21
       durango-backend:
-        ipv4_address: 172.26.0.21
     depends_on:
       - postgres16
 {% if services.memcached_durango %}
@@ -126,15 +121,13 @@ services:
     build:
       context: ./cloud-builder/orangescrum-cloud
       dockerfile: Dockerfile
-    container_name: orangescrum-cloud
+    container_name: {{ domain_prefix }}-orangescrum-cloud
     restart: unless-stopped
     env_file:
       - ./os-v4/.env
     networks:
       traefik-network:
-        ipv4_address: 172.25.0.22
       durango-backend:
-        ipv4_address: 172.26.0.22
     depends_on:
       - postgres16
       - redis-durango
@@ -152,7 +145,7 @@ services:
     build:
       context: ./cloud-builder/orangescrum-cloud
       dockerfile: Dockerfile
-    container_name: orangescrum-cloud-queue
+    container_name: {{ domain_prefix }}-orangescrum-cloud-queue
     restart: unless-stopped
     env_file:
       - ./os-v4/.env
@@ -161,7 +154,6 @@ services:
     command: ["/orangescrum-app/osv4-prod", "php-cli", "bin/cake.php", "queue", "worker", "--verbose"]
     networks:
       durango-backend:
-        ipv4_address: 172.26.0.23
     depends_on:
       - postgres16
       - redis-durango
@@ -176,7 +168,7 @@ services:
       target: php72
       args:
         BUILDER_UID: {{ builder_uid }}
-    container_name: orangescrum
+    container_name: {{ domain_prefix }}-orangescrum
     restart: unless-stopped
     working_dir: /var/www/html
     volumes:
@@ -190,9 +182,7 @@ services:
       - CURL_CA_BUNDLE=/usr/local/share/ca-certificates/{{ domain }}.crt
     networks:
       traefik-network:
-        ipv4_address: 172.25.0.30
       orangescrum-backend:
-        ipv4_address: 172.27.0.30
     depends_on:
       - mysql
       - memcached-orangescrum
@@ -208,7 +198,7 @@ services:
 {% if services.postgres16 %}
   postgres16:
     image: postgres:16.10
-    container_name: postgres16
+    container_name: {{ domain_prefix }}-postgres16
     restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: postgres
@@ -219,7 +209,6 @@ services:
       - ./postgres-init:/docker-entrypoint-initdb.d
     networks:
       durango-backend:
-        ipv4_address: 172.26.0.10
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -231,7 +220,7 @@ services:
 {% if services.mysql %}
   mysql:
     image: mysql:8.0
-    container_name: mysql
+    container_name: {{ domain_prefix }}-mysql
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: rootpassword
@@ -244,7 +233,6 @@ services:
       - mysql-data:/var/lib/mysql
     networks:
       orangescrum-backend:
-        ipv4_address: 172.27.0.10
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
       interval: 10s
@@ -256,12 +244,11 @@ services:
 {% if services.redis_durango %}
   redis-durango:
     image: redis:7-alpine
-    container_name: redis-durango
+    container_name: {{ domain_prefix }}-redis-durango
     restart: unless-stopped
     command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
     networks:
       durango-backend:
-        ipv4_address: 172.26.0.12
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -273,31 +260,29 @@ services:
 {% if services.memcached_durango %}
   memcached-durango:
     image: memcached:1.6-alpine
-    container_name: memcached-durango
+    container_name: {{ domain_prefix }}-memcached-durango
     restart: unless-stopped
     command: memcached -m 128
     networks:
       durango-backend:
-        ipv4_address: 172.26.0.11
 
 {% endif %}
   # Memcached for Orangescrum (separate instance to avoid key conflicts)
 {% if services.memcached_orangescrum %}
   memcached-orangescrum:
     image: memcached:1.6-alpine
-    container_name: memcached-orangescrum
+    container_name: {{ domain_prefix }}-memcached-orangescrum
     restart: unless-stopped
     command: memcached -m 128
     networks:
       orangescrum-backend:
-        ipv4_address: 172.27.0.11
 
 {% endif %}
   # MinIO S3-compatible storage
 {% if services.minio %}
   minio:
     image: quay.io/minio/minio:latest
-    container_name: minio
+    container_name: {{ domain_prefix }}-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -307,11 +292,8 @@ services:
       - minio-data:/data
     networks:
       traefik-network:
-        ipv4_address: 172.25.0.60
       durango-backend:
-        ipv4_address: 172.26.0.60
       orangescrum-backend:
-        ipv4_address: 172.27.0.60
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.minio-api.rule=Host(`storage.{{ domain }}`)"
@@ -335,15 +317,12 @@ services:
 {% if services.mailhog %}
   mailhog:
     image: mailhog/mailhog
-    container_name: mailhog
+    container_name: {{ domain_prefix }}-mailhog
     restart: unless-stopped
     networks:
       traefik-network:
-        ipv4_address: 172.25.0.50
       durango-backend:
-        ipv4_address: 172.26.0.50
       orangescrum-backend:
-        ipv4_address: 172.27.0.50
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.mailhog.rule=Host(`mail.{{ domain }}`)"
@@ -356,7 +335,7 @@ services:
 {% if services.browser %}
   browser:
     image: selenium/standalone-chrome:latest
-    container_name: browser
+    container_name: {{ domain_prefix }}-browser
     ports:
       - "4444:4444"  # Selenium WebDriver
       - "7900:7900"  # noVNC web interface
@@ -383,8 +362,38 @@ services:
     shm_size: 2gb
     networks:
       traefik-network:
-        ipv4_address: 172.25.0.100
 {% endif %}
+  # Apache Reverse Proxy (for LAN access)
+  # Enables access via public domain (e.g., ossiba.com) while routing to internal domain (ossiba.local)
+  # Use: docker compose --profile lan-access up -d
+  apache-proxy:
+    image: httpd:2.4-alpine
+    container_name: {{ domain_prefix }}-apache-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./apache-config-host/apache-proxy-container.conf:/usr/local/apache2/conf/extra/proxy.conf:ro
+      - ./certs:/certs:ro
+    command: >
+      sh -c "
+      echo 'Include conf/extra/proxy.conf' >> /usr/local/apache2/conf/httpd.conf &&
+      sed -i 's/#LoadModule proxy_module/LoadModule proxy_module/' /usr/local/apache2/conf/httpd.conf &&
+      sed -i 's/#LoadModule proxy_http_module/LoadModule proxy_http_module/' /usr/local/apache2/conf/httpd.conf &&
+      sed -i 's/#LoadModule ssl_module/LoadModule ssl_module/' /usr/local/apache2/conf/httpd.conf &&
+      sed -i 's/#LoadModule socache_shmcb_module/LoadModule socache_shmcb_module/' /usr/local/apache2/conf/httpd.conf &&
+      sed -i 's/#LoadModule rewrite_module/LoadModule rewrite_module/' /usr/local/apache2/conf/httpd.conf &&
+      sed -i 's/#LoadModule headers_module/LoadModule headers_module/' /usr/local/apache2/conf/httpd.conf &&
+      httpd-foreground
+      "
+    networks:
+      traefik-network:
+    depends_on:
+      - traefik
+    profiles:
+      - lan-access
+
 volumes:
   postgres-data:
   mysql-data:
@@ -393,19 +402,10 @@ volumes:
 networks:
   traefik-network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.25.0.0/16
-          gateway: 172.25.0.1
+    name: {{ domain_prefix }}-traefik
   durango-backend:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.26.0.0/16
-          gateway: 172.26.0.1
+    name: {{ domain_prefix }}-durango
   orangescrum-backend:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.27.0.0/16
-          gateway: 172.27.0.1
+    name: {{ domain_prefix }}-orangescrum

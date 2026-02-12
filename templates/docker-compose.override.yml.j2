@@ -1,57 +1,63 @@
 # Docker Compose Override - Development Port Mappings
 # Domain: {{ domain }}
 # Generated: {{ generated_date }}
+# Port Offset: {{ port_offset }} (unique per domain for multi-tenant support)
 # 
 # This file exposes service ports for direct access during development
+# Each domain automatically gets unique ports to avoid conflicts
 # Use: docker compose up -d (automatically merges with docker-compose.yml)
-# Configure ports in .env file
+# 
+# To disable port mappings (for production or shared environments):
+#   Rename this file to docker-compose.override.yml.disabled
 
 services:
   # Traefik reverse proxy ports
+  # Bind to 0.0.0.0 for LAN accessibility (allows reverse proxy from other machines)
+  # Unique ports per domain: {{ traefik_http_port }}, {{ traefik_https_port }}
   traefik:
     ports:
-      - "${TRAEFIK_HTTP_PORT:-80}:80"
-      - "${TRAEFIK_HTTPS_PORT:-443}:443"
-      - "127.0.0.1:${TRAEFIK_DASHBOARD_PORT:-8080}:8080"
+      - "0.0.0.0:${TRAEFIK_HTTP_PORT:-{{ traefik_http_port }}}:80"
+      - "0.0.0.0:${TRAEFIK_HTTPS_PORT:-{{ traefik_https_port }}}:443"
+      - "127.0.0.1:${TRAEFIK_DASHBOARD_PORT:-{{ traefik_dashboard_port }}}:8080"
 {% if services.mysql %}
   # Direct MySQL access for database tools
   mysql:
     ports:
-      - "127.0.0.1:${MYSQL_PORT:-3307}:3306"
+      - "127.0.0.1:${MYSQL_PORT:-{{ mysql_port }}}:3306"
 {% endif %}
 
 {% if services.postgres16 %}
   # PostgreSQL access
   postgres16:
     ports:
-      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-{{ postgres_port }}}:5432"
 {% endif %}
 
 {% if services.redis_durango %}
   # Redis access
   redis-durango:
     ports:
-      - "127.0.0.1:${REDIS_PORT:-6380}:6379"
+      - "127.0.0.1:${REDIS_PORT:-{{ redis_port }}}:6379"
 {% endif %}
 
 {% if services.minio %}
   # MinIO S3 storage
   minio:
     ports:
-      - "127.0.0.1:${MINIO_API_PORT:-9000}:9000"
-      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "127.0.0.1:${MINIO_API_PORT:-{{ minio_api_port }}}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-{{ minio_console_port }}}:9001"
 {% endif %}
 
 {% if services.memcached_durango %}
   # Memcached for Durango
   memcached-durango:
     ports:
-      - "127.0.0.1:${MEMCACHED_DURANGO_PORT:-11212}:11211"
+      - "127.0.0.1:${MEMCACHED_DURANGO_PORT:-{{ memcached_durango_port }}}:11211"
 {% endif %}
 
 {% if services.memcached_orangescrum %}
   # Memcached for Orangescrum
   memcached-orangescrum:
     ports:
-      - "127.0.0.1:${MEMCACHED_ORANGESCRUM_PORT:-11213}:11211"
+      - "127.0.0.1:${MEMCACHED_ORANGESCRUM_PORT:-{{ memcached_orangescrum_port }}}:11211"
 {% endif %}
