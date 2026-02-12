@@ -51,22 +51,22 @@ echo -e "${GREEN}✓ OpenSSL installed${NC}"
 
 echo ""
 
-# Check application directories
-echo -e "${BLUE}[2/6] Verifying application directories...${NC}"
+# Check application directories (optional)
+echo -e "${BLUE}[2/6] Checking application directories...${NC}"
 
 if [ ! -d "apps/durango-pg" ]; then
-    echo -e "${RED}✗ apps/durango-pg not found${NC}"
-    echo "Expected: apps/durango-pg/"
-    exit 1
+    echo -e "${YELLOW}⚠ apps/durango-pg not found (will use empty directory)${NC}"
+    mkdir -p apps/durango-pg
+else
+    echo -e "${GREEN}✓ apps/durango-pg exists${NC}"
 fi
-echo -e "${GREEN}✓ apps/durango-pg exists${NC}"
 
 if [ ! -d "apps/orangescrum" ]; then
-    echo -e "${RED}✗ apps/orangescrum not found${NC}"
-    echo "Expected: apps/orangescrum/"
-    exit 1
+    echo -e "${YELLOW}⚠ apps/orangescrum not found (will use empty directory)${NC}"
+    mkdir -p apps/orangescrum
+else
+    echo -e "${GREEN}✓ apps/orangescrum exists${NC}"
 fi
-echo -e "${GREEN}✓ apps/orangescrum exists${NC}"
 
 echo ""
 

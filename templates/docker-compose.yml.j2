@@ -2,6 +2,8 @@
 # Domain: {{ domain }}
 # Generated: {{ generated_date }}
 
+name: orangescrum-{{ domain | replace('.', '-') }}
+
 services:
   # Traefik reverse proxy with SSL
   traefik:
