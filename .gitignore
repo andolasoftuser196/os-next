@@ -35,7 +35,17 @@ config/orangescrum-apache.conf
 traefik/dynamic.yml
 generate-certs.sh
 php-trust-certs.sh
+build-images.sh
 certs/openssl.cnf
+MULTI_TENANT.md
+apache-config-host/apache-proxy.conf
+apache-config-host/apache-proxy-*.conf
+
+# Generated Dockerfiles (auto-generated from templates/)
+Dockerfile.base
+Dockerfile.php7.2
+Dockerfile.php8.3
+Dockerfile.php8.3-node
 
 # Backup directories
 backups/
