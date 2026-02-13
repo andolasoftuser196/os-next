@@ -1,0 +1,55 @@
+# Base Ubuntu image for OrangeScrum applications
+# Provides common packages and Apache configuration
+# Generated: {{ generation_date }}
+
+FROM ubuntu:jammy
+
+ARG BUILDER_UID={{ builder_uid }}
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install common packages, Apache, and database clients
+RUN apt update && \
+    apt install -y --no-install-recommends \
+        software-properties-common \
+        ca-certificates \
+        curl \
+        wget \
+        zip \
+        unzip \
+        git \
+        apache2 \
+        sqlite3 \
+        postgresql-client \
+        mysql-client \
+        redis-tools && \
+    apt clean && rm -rf /var/lib/apt/lists/*
+
+# Add ondrej/php PPA for multiple PHP versions
+RUN apt update && \
+    apt install -y --no-install-recommends gnupg && \
+    add-apt-repository ppa:ondrej/php -y && \
+    apt update
+
+# Apache base configuration
+RUN a2enmod rewrite headers ssl proxy proxy_http && \
+    echo "ServerName localhost" >> /etc/apache2/apache2.conf
+
+# Create application user with specified UID
+RUN if id ${BUILDER_UID} >/dev/null 2>&1; then \
+        userdel $(id -nu ${BUILDER_UID}) 2>/dev/null || true; \
+    fi && \
+    groupadd -g ${BUILDER_UID} appuser 2>/dev/null || true && \
+    useradd -u ${BUILDER_UID} -g ${BUILDER_UID} -m -s /bin/bash appuser && \
+    usermod -aG sudo appuser
+
+# Configure Apache to run as appuser
+RUN sed -i "s/export APACHE_RUN_USER=www-data/export APACHE_RUN_USER=appuser/" /etc/apache2/envvars && \
+    sed -i "s/export APACHE_RUN_GROUP=www-data/export APACHE_RUN_GROUP=appuser/" /etc/apache2/envvars
+
+# Set working directory and permissions
+WORKDIR /var/www/html
+RUN chown -R appuser:appuser /var/www/html
+
+EXPOSE 80 443
+
+CMD ["apache2ctl", "-D", "FOREGROUND"]

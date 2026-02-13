@@ -1,8 +1,9 @@
 
 Next steps:
-  1. Generate SSL certificates: ./generate-certs.sh
-  2. Start Docker services: docker compose up -d
-  3. (Optional) Setup Apache reverse proxy on host:
+  1. Build Docker images: ./build-images.sh
+  2. Generate SSL certificates: ./generate-certs.sh
+  3. Start Docker services: docker compose up -d
+  4. (Optional) Setup Apache reverse proxy on host:
      a. Enable Apache modules:
         sudo a2enmod proxy proxy_http proxy_wstunnel ssl rewrite headers
      b. Install proxy configuration:
@@ -11,7 +12,7 @@ Next steps:
         sudo apache2ctl configtest
         sudo systemctl reload apache2
      c. See apache-config-host/PROXY_SETUP.md for details
-  4. Run database setup:
+  5. Run database setup:
 {% if services.orangescrum_v4 %}
      ./setup-v4-database.sh
 {% endif %}

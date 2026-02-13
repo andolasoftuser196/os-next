@@ -11,8 +11,10 @@ http:
       middlewares:
         - redirect-root
       entryPoints:
-        - websecure
+        - {% if enable_https %}websecure{% else %}web{% endif %}
+{% if enable_https %}
       tls: {}
+{% endif %}
       priority: 150
       service: noop@internal
 {% endif %}
@@ -23,8 +25,10 @@ http:
       rule: "Host(`selfhosted.{{ domain }}`)"
       service: durango-pg
       entryPoints:
-        - websecure
+        - {% if enable_https %}websecure{% else %}web{% endif %}
+{% if enable_https %}
       tls: {}
+{% endif %}
       priority: 100
 {% endif %}
 
@@ -34,8 +38,10 @@ http:
       rule: "Host(`v4.{{ domain }}`)"
       service: orangescrum-v4
       entryPoints:
-        - websecure
+        - {% if enable_https %}websecure{% else %}web{% endif %}
+{% if enable_https %}
       tls: {}
+{% endif %}
       priority: 100
 {% endif %}
 
@@ -45,8 +51,10 @@ http:
       rule: "Host(`app.{{ domain }}`, `www.{{ domain }}`)"
       service: orangescrum
       entryPoints:
-        - websecure
+        - {% if enable_https %}websecure{% else %}web{% endif %}
+{% if enable_https %}
       tls: {}
+{% endif %}
       priority: 100
 {% endif %}
 
@@ -56,8 +64,10 @@ http:
       rule: "Host(`mail.{{ domain }}`)"
       service: mailhog
       entryPoints:
-        - websecure
+        - {% if enable_https %}websecure{% else %}web{% endif %}
+{% if enable_https %}
       tls: {}
+{% endif %}
       priority: 100
 {% endif %}
 
@@ -66,16 +76,18 @@ http:
       rule: "Host(`traefik.{{ domain }}`)"
       service: api@internal
       entryPoints:
-        - websecure
+        - {% if enable_https %}websecure{% else %}web{% endif %}
+{% if enable_https %}
       tls: {}
+{% endif %}
       priority: 100
 
   middlewares:
 {% if services.orangescrum_v4 or services.orangescrum or services.durango_pg %}
     redirect-root:
       redirectRegex:
-        regex: "^https://{{ domain }}/(.*)"
-        replacement: "https://{% if services.orangescrum_v4 %}v4{% elif services.durango_pg %}selfhosted{% elif services.orangescrum %}app{% else %}traefik{% endif %}.{{ domain }}/${1}"
+        regex: "^{{ 'https' if enable_https else 'http' }}://{{ domain }}/(.*)"
+        replacement: "{{ 'https' if enable_https else 'http' }}://{% if services.orangescrum_v4 %}v4{% elif services.durango_pg %}selfhosted{% elif services.orangescrum %}app{% else %}traefik{% endif %}.{{ domain }}/${1}"
         permanent: true
 {% endif %}
 
@@ -108,6 +120,7 @@ http:
           - url: "http://mailhog:8025"
 {% endif %}
 
+{% if enable_https %}
 tls:
   certificates:
     - certFile: /certs/{{ domain }}.crt
@@ -117,3 +130,4 @@ tls:
       defaultCertificate:
         certFile: /certs/{{ domain }}.crt
         keyFile: /certs/{{ domain }}.key
+{% endif %}

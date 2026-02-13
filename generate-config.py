@@ -73,7 +73,12 @@ def backup_files(backup_dir):
         'config/durango-apache.conf',
         'config/orangescrum-apache.conf',
         'php-trust-certs.sh',
-        'generate-certs.sh'
+        'generate-certs.sh',
+        'build-images.sh',
+        'Dockerfile.base',
+        'Dockerfile.php7.2',
+        'Dockerfile.php8.3',
+        'Dockerfile.php8.3-node'
     ]
     
     backup_path = Path(backup_dir)
@@ -128,7 +133,7 @@ def backup_old_domain_files(old_domain, backup_dir):
             print(f"  Archived: {file.name}")
 
 
-def generate_configurations(domain, dry_run=False, interactive=False):
+def generate_configurations(domain, dry_run=False, interactive=False, enable_https=False):
     """Generate all configuration files from templates"""
     
     # Validate domain
@@ -186,6 +191,7 @@ def generate_configurations(domain, dry_run=False, interactive=False):
     print_header("OrangeScrum Docker Configuration Generator")
     print(f"Domain: {domain}")
     print(f"LAN IP: {lan_ip}")
+    print(f"HTTPS: {'Enabled' if enable_https else 'Disabled (HTTP only)'}")
     print(f"Mode: {'Dry run (review only)' if dry_run else 'Apply configurations'}\n")
     
     # # Ask about docker-compose.override.yml
@@ -254,7 +260,9 @@ def generate_configurations(domain, dry_run=False, interactive=False):
         'minio_api_port': base_minio_api,
         'minio_console_port': base_minio_console,
         'memcached_durango_port': base_memcached_durango,
-        'memcached_orangescrum_port': base_memcached_orangescrum
+        'memcached_orangescrum_port': base_memcached_orangescrum,
+        'enable_https': enable_https,
+        'node_version': '20'
     }
     # Default services selection
     # If interactive mode: start with None (ask user)
@@ -271,7 +279,8 @@ def generate_configurations(domain, dry_run=False, interactive=False):
             'memcached_durango': False,
             'minio': False,
             'mailhog': False,
-            'browser': False
+            'browser': False,
+            'enable_node': False
         }
     else:
         # Default: enable common services
@@ -286,7 +295,8 @@ def generate_configurations(domain, dry_run=False, interactive=False):
             'memcached_durango': False,  # Use redis instead
             'minio': False,
             'mailhog': True,
-            'browser': False
+            'browser': False,
+            'enable_node': False
         }
     
     context['services'] = default_services
@@ -377,6 +387,14 @@ def generate_configurations(domain, dry_run=False, interactive=False):
             print_colored('Step 4: Additional Services', Colors.BLUE)
             
             try:
+                # Ask about Node.js for Vue apps (only if V4 or Durango is enabled)
+                if context['services']['orangescrum_v4'] or context['services']['durango_pg']:
+                    resp_node = input("  Enable Node.js for Vue.js development? [y/N]: ").strip().lower()
+                    context['services']['enable_node'] = resp_node in ['y', 'yes']
+                    if context['services']['enable_node']:
+                        node_ver = input("    Node.js version [20]: ").strip() or "20"
+                        context['node_version'] = node_ver
+                
                 resp_mail = input("  Enable MailHog (email testing)? [Y/n]: ").strip().lower()
                 context['services']['mailhog'] = resp_mail in ['', 'y', 'yes']
                 
@@ -424,6 +442,31 @@ def generate_configurations(domain, dry_run=False, interactive=False):
             'template': '.env.j2',
             'output': '.env',
             'label': '.env'
+        },
+        {
+            'template': 'Dockerfile.base.j2',
+            'output': 'Dockerfile.base',
+            'label': 'Dockerfile.base'
+        },
+        {
+            'template': 'Dockerfile.php7.2.j2',
+            'output': 'Dockerfile.php7.2',
+            'label': 'Dockerfile.php7.2'
+        },
+        {
+            'template': 'Dockerfile.php8.3.j2',
+            'output': 'Dockerfile.php8.3',
+            'label': 'Dockerfile.php8.3'
+        },
+        {
+            'template': 'Dockerfile.php8.3-node.j2',
+            'output': 'Dockerfile.php8.3-node',
+            'label': 'Dockerfile.php8.3-node'
+        },
+        {
+            'template': 'build-images.sh.j2',
+            'output': 'build-images.sh',
+            'label': 'build-images.sh'
         },
         {
             'template': 'docker-compose.yml.j2',
@@ -549,7 +592,7 @@ def generate_configurations(domain, dry_run=False, interactive=False):
             output_path.write_text(output_content)
             
             # Make shell scripts executable
-            if output_path.suffix in ['.sh', ''] and config['output'].endswith('.sh.new'):
+            if output_path.suffix == '.sh' or (output_path.suffix == '.new' and '.sh' in config['output']):
                 output_path.chmod(0o755)
             
             generated_files.append(config['output'])
@@ -666,6 +709,11 @@ def main():
         action='store_true',
         help='Interactive mode: prompt for service selection and options'
     )
+    parser.add_argument(
+        '--https',
+        action='store_true',
+        help='Enable HTTPS/TLS (default: HTTP only)'
+    )
     
     args = parser.parse_args()
     
@@ -695,7 +743,12 @@ def main():
             'config/durango-apache.conf',
             'config/orangescrum-apache.conf',
             'php-trust-certs.sh',
-            'generate-certs.sh'
+            'generate-certs.sh',
+            'build-images.sh',
+            'Dockerfile.base',
+            'Dockerfile.php7.2',
+            'Dockerfile.php8.3',
+            'Dockerfile.php8.3-node'
         ]
         # Also remove generated launchers for any domain patterns and env files
         files_to_remove.extend(['os-v2/.env', 'os-v4/.env', 'os-pg/.env'])
@@ -748,7 +801,7 @@ def main():
         print_colored("Error: domain is required unless --reset is used.", Colors.RED)
         sys.exit(2)
 
-    generate_configurations(args.domain, args.dry_run, args.interactive)
+    generate_configurations(args.domain, args.dry_run, args.interactive, args.https)
 
 
 if __name__ == '__main__':

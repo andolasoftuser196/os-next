@@ -13,11 +13,13 @@
 services:
   # Traefik reverse proxy ports
   # Bind to 0.0.0.0 for LAN accessibility (allows reverse proxy from other machines)
-  # Unique ports per domain: {{ traefik_http_port }}, {{ traefik_https_port }}
+  # Unique ports per domain: {{ traefik_http_port }}{% if enable_https %}, {{ traefik_https_port }}{% endif %}
   traefik:
     ports:
       - "0.0.0.0:${TRAEFIK_HTTP_PORT:-{{ traefik_http_port }}}:80"
+{% if enable_https %}
       - "0.0.0.0:${TRAEFIK_HTTPS_PORT:-{{ traefik_https_port }}}:443"
+{% endif %}
       - "127.0.0.1:${TRAEFIK_DASHBOARD_PORT:-{{ traefik_dashboard_port }}}:8080"
 {% if services.mysql %}
   # Direct MySQL access for database tools

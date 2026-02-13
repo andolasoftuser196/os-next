@@ -1,0 +1,96 @@
+#!/bin/bash
+# Docker Image Build Script
+# Builds OrangeScrum Docker images in the correct order
+# Domain: {{ domain }}
+# Generated: {{ generation_date }}
+
+set -e  # Exit on error
+
+DOMAIN="{{ domain }}"
+DOMAIN_PREFIX="{{ domain_prefix }}"
+BUILDER_UID="{{ builder_uid }}"
+
+echo "========================================"
+echo "Building OrangeScrum Docker Images"
+echo "Domain: ${DOMAIN}"
+echo "========================================"
+echo ""
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Function to print colored output
+print_step() {
+    echo -e "${BLUE}==> $1${NC}"
+}
+
+print_success() {
+    echo -e "${GREEN}✓ $1${NC}"
+}
+
+print_error() {
+    echo -e "${RED}✗ $1${NC}"
+}
+
+# Step 1: Build base image
+print_step "Building base Ubuntu image..."
+docker build \
+    --file Dockerfile.base \
+    --build-arg BUILDER_UID=${BUILDER_UID} \
+    --tag orangescrum-base:${DOMAIN_PREFIX} \
+    .
+print_success "Base image built successfully"
+echo ""
+
+# Step 2: Build PHP 8.3 image (for V4 and Durango)
+{% if services.orangescrum_v4 or services.durango_pg %}
+print_step "Building PHP 8.3 image..."
+docker build \
+    --file {% if services.enable_node %}Dockerfile.php8.3-node{% else %}Dockerfile.php8.3{% endif %} \
+    --build-arg BASE_IMAGE=orangescrum-base:${DOMAIN_PREFIX} \
+    --build-arg BUILDER_UID=${BUILDER_UID} \
+{% if services.enable_node %}
+    --build-arg NODE_VERSION={{ node_version | default('20') }} \
+{% endif %}
+    --tag orangescrum-{% if services.enable_node %}php8.3-node{% else %}php8.3{% endif %}:${DOMAIN_PREFIX} \
+    .
+print_success "PHP 8.3 image built successfully"
+echo ""
+{% endif %}
+
+# Step 3: Build PHP 7.2 image (for V2)
+{% if services.orangescrum %}
+print_step "Building PHP 7.2 image..."
+docker build \
+    --file Dockerfile.php7.2 \
+    --build-arg BASE_IMAGE=orangescrum-base:${DOMAIN_PREFIX} \
+    --build-arg BUILDER_UID=${BUILDER_UID} \
+    --tag orangescrum-php7.2:${DOMAIN_PREFIX} \
+    .
+print_success "PHP 7.2 image built successfully"
+echo ""
+{% endif %}
+
+echo ""
+echo "========================================"
+print_success "All images built successfully!"
+echo "========================================"
+echo ""
+echo "Next steps:"
+echo "  1. Start services: docker compose up -d"
+echo "  2. View logs: docker compose logs -f"
+echo "  3. Access applications:"
+{% if services.orangescrum_v4 %}
+echo "     - OrangeScrum V4: https://v4.${DOMAIN}"
+{% endif %}
+{% if services.durango_pg %}
+echo "     - Durango PG: https://selfhosted.${DOMAIN}"
+{% endif %}
+{% if services.orangescrum %}
+echo "     - OrangeScrum V2: https://app.${DOMAIN}"
+{% endif %}
+echo ""
