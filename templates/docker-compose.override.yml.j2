@@ -14,6 +14,7 @@ services:
   # Traefik reverse proxy ports
   # Bind to 0.0.0.0 for LAN accessibility (allows reverse proxy from other machines)
   # Unique ports per domain: {{ traefik_http_port }}{% if enable_https %}, {{ traefik_https_port }}{% endif %}
+
   traefik:
     ports:
       - "0.0.0.0:${TRAEFIK_HTTP_PORT:-{{ traefik_http_port }}}:80"
