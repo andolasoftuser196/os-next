@@ -58,6 +58,7 @@ orangescrum-cloud/docker-compose.ports.generated.yml
 .env.*
 !.env.example
 !.env.*.example
+.env.elasticache.example
 
 # Secrets and credentials
 secrets/
