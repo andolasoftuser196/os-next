@@ -120,7 +120,6 @@ http:
           - url: "http://mailhog:8025"
 {% endif %}
 
-{% if enable_https %}
 tls:
   certificates:
     - certFile: /certs/{{ domain }}.crt
@@ -130,4 +129,3 @@ tls:
       defaultCertificate:
         certFile: /certs/{{ domain }}.crt
         keyFile: /certs/{{ domain }}.key
-{% endif %}

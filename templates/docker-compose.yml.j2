@@ -26,13 +26,16 @@ services:
 {% endif %}
     volumes:
       - ./traefik:/etc/traefik/dynamic:ro
-{% if enable_https %}
       - ./certs:/certs:ro
-{% endif %}
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       traefik-network:
       browser-internal:
+        aliases:
+          - {{ domain }}
+          - v4.{{ domain }}
+          - mail.{{ domain }}
+          - traefik.{{ domain }}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.{{ domain }}`)"
@@ -382,15 +385,22 @@ services:
     image: lscr.io/linuxserver/chromium:latest
     container_name: {{ domain_prefix }}-browser
     restart: unless-stopped
-    shm_size: 1gb
+    shm_size: 512mb
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
     environment:
       - PUID={{ builder_uid }}
       - PGID={{ builder_gid | default(builder_uid) }}
       - TZ={{ timezone | default('Etc/UTC') }}
       - CUSTOM_USER=${BROWSER_USER:-browser}
       - PASSWORD=${BROWSER_PASSWORD:-browser}
+      - CHROME_CLI=--disable-gpu --disable-software-rasterizer --ignore-certificate-errors --allow-insecure-localhost
     volumes:
       - ./browser-config:/config
+      - ./certs:/certs:ro
+      - ./entrypoints/browser-trust-certs.sh:/custom-cont-init.d/10-browser-trust-certs.sh:ro
     networks:
       browser-internal:
 {% endif %}
