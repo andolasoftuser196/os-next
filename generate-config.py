@@ -233,12 +233,22 @@ def generate_configurations(domain, dry_run=False, interactive=False, enable_htt
         keep_trailing_newline=True
     )
     
-    # Generate security salt for .env files
+    # Generate security salt compatible with CakePHP 4
+    # CakePHP uses: hash('sha256', Security::randomBytes(64)) -> 64-char hex string
+    import hashlib
     try:
         import secrets
-        security_salt = secrets.token_urlsafe(32)
-    except:
-        security_salt = subprocess.run(['openssl', 'rand', '-base64', '32'], capture_output=True, text=True).stdout.strip()
+        security_salt = hashlib.sha256(secrets.token_bytes(64)).hexdigest()
+    except Exception:
+        # Fallback to openssl if secrets isn't available. Generate 64 random bytes as hex
+        try:
+            raw_hex = subprocess.run(['openssl', 'rand', '-hex', '64'], capture_output=True, text=True, check=True).stdout.strip()
+            raw_bytes = bytes.fromhex(raw_hex)
+            security_salt = hashlib.sha256(raw_bytes).hexdigest()
+        except Exception:
+            # Last-resort fallback: hash of two UUID4 values
+            import uuid
+            security_salt = hashlib.sha256(uuid.uuid4().bytes + uuid.uuid4().bytes).hexdigest()
     
     # Template context
     context = {
