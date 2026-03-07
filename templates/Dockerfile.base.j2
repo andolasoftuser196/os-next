@@ -5,6 +5,7 @@
 FROM ubuntu:jammy
 
 ARG BUILDER_UID={{ builder_uid }}
+ARG BUILDER_GID={{ builder_gid | default(builder_uid) }}
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install common packages, Apache, and database clients
@@ -34,12 +35,17 @@ RUN apt update && \
 RUN a2enmod rewrite headers ssl proxy proxy_http && \
     echo "ServerName localhost" >> /etc/apache2/apache2.conf
 
-# Create application user with specified UID
+# Create application user with host-matching UID/GID
 RUN if id ${BUILDER_UID} >/dev/null 2>&1; then \
         userdel $(id -nu ${BUILDER_UID}) 2>/dev/null || true; \
     fi && \
-    groupadd -g ${BUILDER_UID} appuser 2>/dev/null || true && \
-    useradd -u ${BUILDER_UID} -g ${BUILDER_UID} -m -s /bin/bash appuser && \
+    if getent group ${BUILDER_GID} >/dev/null 2>&1; then \
+        EXISTING_GROUP_NAME=$(getent group ${BUILDER_GID} | cut -d: -f1); \
+    else \
+        groupadd -g ${BUILDER_GID} appuser; \
+        EXISTING_GROUP_NAME=appuser; \
+    fi && \
+    useradd -u ${BUILDER_UID} -g ${EXISTING_GROUP_NAME} -m -s /bin/bash appuser && \
     usermod -aG sudo appuser
 
 # Configure Apache to run as appuser

@@ -8,11 +8,15 @@ set -e  # Exit on error
 
 DOMAIN="{{ domain }}"
 DOMAIN_PREFIX="{{ domain_prefix }}"
-BUILDER_UID="{{ builder_uid }}"
+BUILDER_UID="${BUILDER_UID:-$(id -u)}"
+BUILDER_GID="${BUILDER_GID:-$(id -g)}"
+NODE_VERSION="${NODE_VERSION:-{{ node_version | default('20.x') }}}"
+BUILD_TARGET="${1:-php8.3-node}"
 
 echo "========================================"
 echo "Building OrangeScrum Docker Images"
 echo "Domain: ${DOMAIN}"
+echo "Host UID:GID: ${BUILDER_UID}:${BUILDER_GID}"
 echo "========================================"
 echo ""
 
@@ -36,48 +40,108 @@ print_error() {
     echo -e "${RED}✗ $1${NC}"
 }
 
-# Step 1: Build base image
-print_step "Building base Ubuntu image..."
-docker build \
-    --file Dockerfile.base \
-    --build-arg BUILDER_UID=${BUILDER_UID} \
-    --tag orangescrum-base:${DOMAIN_PREFIX} \
-    .
-print_success "Base image built successfully"
-echo ""
+print_usage() {
+    cat <<EOF
+Usage: ./build-images.sh [target]
 
-# Step 2: Build PHP 8.3 image (for V4 and Durango)
-{% if services.orangescrum_v4 or services.durango_pg %}
-print_step "Building PHP 8.3 image..."
-docker build \
-    --file {% if services.enable_node %}Dockerfile.php8.3-node{% else %}Dockerfile.php8.3{% endif %} \
-    --build-arg BASE_IMAGE=orangescrum-base:${DOMAIN_PREFIX} \
-    --build-arg BUILDER_UID=${BUILDER_UID} \
-{% if services.enable_node %}
-    --build-arg NODE_VERSION={{ node_version | default('20') }} \
-{% endif %}
-    --tag orangescrum-{% if services.enable_node %}php8.3-node{% else %}php8.3{% endif %}:${DOMAIN_PREFIX} \
-    .
-print_success "PHP 8.3 image built successfully"
-echo ""
-{% endif %}
+Targets:
+  php8.3-node  Build base + PHP 8.3 Node image (default)
+  php8.3       Build base + PHP 8.3 image
+  php7.2       Build base + PHP 7.2 image
+  base         Build only base image
+  all          Build base + all app images
+EOF
+}
 
-# Step 3: Build PHP 7.2 image (for V2)
-{% if services.orangescrum %}
-print_step "Building PHP 7.2 image..."
-docker build \
-    --file Dockerfile.php7.2 \
-    --build-arg BASE_IMAGE=orangescrum-base:${DOMAIN_PREFIX} \
-    --build-arg BUILDER_UID=${BUILDER_UID} \
-    --tag orangescrum-php7.2:${DOMAIN_PREFIX} \
-    .
-print_success "PHP 7.2 image built successfully"
-echo ""
-{% endif %}
+build_base() {
+    print_step "Building base Ubuntu image..."
+    docker build \
+        --file Dockerfile.base \
+        --build-arg BUILDER_UID=${BUILDER_UID} \
+        --build-arg BUILDER_GID=${BUILDER_GID} \
+        --tag orangescrum-base:${DOMAIN_PREFIX} \
+        .
+    print_success "Base image built successfully"
+    echo ""
+}
+
+build_php83() {
+    print_step "Building PHP 8.3 image..."
+    docker build \
+        --file Dockerfile.php8.3 \
+        --build-arg BASE_IMAGE=orangescrum-base:${DOMAIN_PREFIX} \
+        --build-arg BUILDER_UID=${BUILDER_UID} \
+        --build-arg BUILDER_GID=${BUILDER_GID} \
+        --tag orangescrum-php8.3:${DOMAIN_PREFIX} \
+        .
+    print_success "PHP 8.3 image built successfully"
+    echo ""
+}
+
+build_php83_node() {
+    print_step "Building PHP 8.3 + Node image..."
+    docker build \
+        --file Dockerfile.php8.3-node \
+        --build-arg BASE_IMAGE=orangescrum-base:${DOMAIN_PREFIX} \
+        --build-arg BUILDER_UID=${BUILDER_UID} \
+        --build-arg BUILDER_GID=${BUILDER_GID} \
+        --build-arg NODE_VERSION=${NODE_VERSION} \
+        --tag orangescrum-php8.3-node:${DOMAIN_PREFIX} \
+        .
+    print_success "PHP 8.3 + Node image built successfully"
+    echo ""
+}
+
+build_php72() {
+    print_step "Building PHP 7.2 image..."
+    docker build \
+        --file Dockerfile.php7.2 \
+        --build-arg BASE_IMAGE=orangescrum-base:${DOMAIN_PREFIX} \
+        --build-arg BUILDER_UID=${BUILDER_UID} \
+        --build-arg BUILDER_GID=${BUILDER_GID} \
+        --tag orangescrum-php7.2:${DOMAIN_PREFIX} \
+        .
+    print_success "PHP 7.2 image built successfully"
+    echo ""
+}
+
+if [[ "${BUILD_TARGET}" == "-h" || "${BUILD_TARGET}" == "--help" ]]; then
+    print_usage
+    exit 0
+fi
+
+case "${BUILD_TARGET}" in
+    base)
+        build_base
+        ;;
+    php8.3)
+        build_base
+        build_php83
+        ;;
+    php8.3-node)
+        build_base
+        build_php83_node
+        ;;
+    php7.2)
+        build_base
+        build_php72
+        ;;
+    all)
+        build_base
+        build_php83
+        build_php83_node
+        build_php72
+        ;;
+    *)
+        print_error "Unknown target: ${BUILD_TARGET}"
+        print_usage
+        exit 1
+        ;;
+esac
 
 echo ""
 echo "========================================"
-print_success "All images built successfully!"
+print_success "Build target '${BUILD_TARGET}' completed successfully!"
 echo "========================================"
 echo ""
 echo "Next steps:"

@@ -11,6 +11,8 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 DOMAIN="${1:-ossiba.local}"
+export BUILDER_UID="${BUILDER_UID:-$(id -u)}"
+export BUILDER_GID="${BUILDER_GID:-$(id -g)}"
 
 clear
 echo -e "${BLUE}╔════════════════════════════════════════════════╗"
@@ -18,6 +20,7 @@ echo "║   OrangeScrum Docker - Full Setup             ║"
 echo "╚════════════════════════════════════════════════╝${NC}"
 echo ""
 echo "Domain: ${YELLOW}${DOMAIN}${NC}"
+echo "Builder UID:GID: ${YELLOW}${BUILDER_UID}:${BUILDER_GID}${NC}"
 echo ""
 
 # Check prerequisites

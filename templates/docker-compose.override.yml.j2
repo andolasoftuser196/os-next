@@ -64,3 +64,11 @@ services:
     ports:
       - "127.0.0.1:${MEMCACHED_ORANGESCRUM_PORT:-{{ memcached_orangescrum_port }}}:11211"
 {% endif %}
+
+{% if services.browser %}
+  # Browser testing access
+  browser:
+    ports:
+      - "127.0.0.1:${BROWSER_HTTP_PORT:-13000}:3000"
+      - "127.0.0.1:${BROWSER_HTTPS_PORT:-13001}:3001"
+{% endif %}

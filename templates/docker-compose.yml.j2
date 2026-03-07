@@ -32,6 +32,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       traefik-network:
+      browser-internal:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.{{ domain }}`)"
@@ -72,6 +73,7 @@ services:
     networks:
       traefik-network:
       durango-backend:
+      browser-internal:
     depends_on:
       - postgres16
 {% if services.memcached_durango %}
@@ -181,6 +183,7 @@ services:
     command: ["/orangescrum-app/osv4-prod", "php-cli", "bin/cake.php", "queue", "worker", "--verbose"]
     networks:
       durango-backend:
+      browser-internal:
     depends_on:
       - postgres16
       - redis-durango
@@ -243,6 +246,7 @@ services:
       - ./postgres-init:/docker-entrypoint-initdb.d
     networks:
       durango-backend:
+      browser-internal:
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -328,6 +332,7 @@ services:
       traefik-network:
       durango-backend:
       orangescrum-backend:
+      browser-internal:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.minio-api.rule=Host(`storage.{{ domain }}`)"
@@ -374,34 +379,20 @@ services:
   # Browser with VNC for testing
 {% if services.browser %}
   browser:
-    image: selenium/standalone-chrome:latest
+    image: lscr.io/linuxserver/chromium:latest
     container_name: {{ domain_prefix }}-browser
-    ports:
-      - "4444:4444"  # Selenium WebDriver
-      - "7900:7900"  # noVNC web interface
-      - "5900:5900"  # VNC
+    restart: unless-stopped
+    shm_size: 1gb
     environment:
-      - SE_VNC_NO_PASSWORD=1
-      - SE_SCREEN_WIDTH=1366
-      - SE_SCREEN_HEIGHT=768
+      - PUID={{ builder_uid }}
+      - PGID={{ builder_gid | default(builder_uid) }}
+      - TZ={{ timezone | default('Etc/UTC') }}
+      - CUSTOM_USER=${BROWSER_USER:-browser}
+      - PASSWORD=${BROWSER_PASSWORD:-browser}
     volumes:
-      - ./certs:/certs:ro
-    extra_hosts:
-      - "v4.{{ domain }}:{{ traefik_ip }}"
-      - "app.{{ domain }}:{{ traefik_ip }}"
-      - "mail.{{ domain }}:{{ traefik_ip }}"
-    entrypoint: >
-      bash -c "
-      sudo mkdir -p /usr/local/share/ca-certificates &&
-      sudo cp /certs/{{ domain }}.crt /usr/local/share/ca-certificates/{{ domain }}.crt &&
-      sudo update-ca-certificates &&
-      mkdir -p /home/seluser/.pki/nssdb &&
-      certutil -d sql:/home/seluser/.pki/nssdb -A -t 'C,,' -n '{{ domain }} CA' -i /certs/{{ domain }}.crt 2>/dev/null || true &&
-      /opt/bin/entry_point.sh
-      "
-    shm_size: 2gb
+      - ./browser-config:/config
     networks:
-      traefik-network:
+      browser-internal:
 {% endif %}
   # Apache Reverse Proxy (for LAN access)
   # Enables access via public domain (e.g., ossiba.com) while routing to internal domain (ossiba.local)
@@ -450,6 +441,11 @@ networks:
   durango-backend:
     driver: bridge
     name: {{ domain_prefix }}-durango
+  browser-internal:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false"
+    name: {{ domain_prefix }}-browser-internal
   orangescrum-backend:
     driver: bridge
     name: {{ domain_prefix }}-orangescrum
