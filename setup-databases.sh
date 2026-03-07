@@ -45,11 +45,17 @@ echo ""
 
 # Function to check if container is running
 check_container() {
-    if ! docker ps --format '{{.Names}}' | grep -q "^$1$"; then
-        echo -e "${RED}Error: Container $1 is not running${NC}"
-        echo "Please start services first: docker compose up -d"
-        exit 1
+    # Prefer docker compose service presence (handles project name prefixes)
+    if docker compose ps -q "$1" >/dev/null 2>&1 && [ -n "$(docker compose ps -q "$1")" ]; then
+        return 0
     fi
+    # Fallback: match container name suffix
+    if docker ps --format '{{.Names}}' | grep -q "$1$"; then
+        return 0
+    fi
+    echo -e "${RED}Error: Container $1 is not running${NC}"
+    echo "Please start services first: docker compose up -d"
+    exit 1
 }
 
 # Function to wait for database to be ready
@@ -61,9 +67,14 @@ wait_for_db() {
     echo -e "${YELLOW}Waiting for $container to be ready...${NC}"
     
     while [ $attempt -le $max_attempts ]; do
-        if docker compose ps $container | grep -q "healthy"; then
-            echo -e "${GREEN}$container is ready!${NC}"
-            return 0
+        # Use container id and inspect health status for robustness
+        cid=$(docker compose ps -q "$container" 2>/dev/null || true)
+        if [ -n "$cid" ]; then
+            status=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}running{{end}}' "$cid" 2>/dev/null || true)
+            if [ "$status" = "healthy" ] || [ "$status" = "running" ]; then
+                echo -e "${GREEN}$container is ready!${NC}"
+                return 0
+            fi
         fi
         echo "Attempt $attempt/$max_attempts..."
         sleep 2
@@ -85,7 +96,7 @@ wait_for_db "postgres16"
 echo ""
 
 echo "Step 3: Checking if database is already populated..."
-EXISTING_TABLES=$(docker exec postgres16 psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" 2>/dev/null | xargs || echo "0")
+EXISTING_TABLES=$(docker compose exec -T postgres16 psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" 2>/dev/null | xargs || echo "0")
 
 if [ "$EXISTING_TABLES" -gt "0" ]; then
     if [ "$FORCE_RESET" = true ]; then
@@ -113,18 +124,18 @@ echo "Step 4: Setting up PostgreSQL database (V4 - Durango)..."
 if [ -f "apps/durango-pg/durango.sql" ]; then
     echo "Found PostgreSQL dump file: apps/durango-pg/durango.sql"
     echo "Importing database..."
-    docker exec -i postgres16 psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" < apps/durango-pg/durango.sql
+    docker compose exec -T postgres16 psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" < apps/durango-pg/durango.sql
     
     # Verify import
     TABLE_COUNT=$(docker exec postgres16 psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | sed -n 3p | xargs)
     echo -e "${GREEN}✓ PostgreSQL import complete. Tables imported: $TABLE_COUNT${NC}"
-elif docker exec durango-pg test -f bin/cake.php; then
+    elif docker compose exec -T durango-pg test -f bin/cake.php; then
     echo "No PostgreSQL dump found, running CakePHP InitDatabase command..."
     echo "This will run migrations and seed the database with initial data."
     echo ""
     
     # Run the init_database command with --seed flag (will ask for confirmation)
-    if docker exec -i durango-pg php bin/cake.php init_database --seed; then
+    if docker compose exec -T durango-pg php bin/cake.php init_database --seed; then
         TABLE_COUNT=$(docker exec postgres16 psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | sed -n 3p | xargs)
         echo -e "${GREEN}✓ Database initialization complete. Tables created: $TABLE_COUNT${NC}"
     else
@@ -152,7 +163,7 @@ echo ""
 
 # PostgreSQL Status
 echo "PostgreSQL (V4 - Durango):"
-PG_TABLES=$(docker exec postgres16 psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | sed -n 3p | xargs)
+PG_TABLES=$(docker compose exec -T postgres16 psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | sed -n 3p | xargs)
 if [ "$PG_TABLES" -gt "0" ]; then
     echo -e "  Status: ${GREEN}✓ Ready${NC}"
     echo "  Tables: $PG_TABLES"

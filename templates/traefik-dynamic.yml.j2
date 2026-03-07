@@ -12,10 +12,10 @@ http:
         - redirect-root
       entryPoints:
         - {% if enable_https %}websecure{% else %}web{% endif %}
+      priority: 150
 {% if enable_https %}
       tls: {}
 {% endif %}
-      priority: 150
       service: noop@internal
 {% endif %}
 
@@ -26,10 +26,10 @@ http:
       service: durango-pg
       entryPoints:
         - {% if enable_https %}websecure{% else %}web{% endif %}
+      priority: 100
 {% if enable_https %}
       tls: {}
 {% endif %}
-      priority: 100
 {% endif %}
 
 {% if services.orangescrum_v4 %}
@@ -39,10 +39,10 @@ http:
       service: orangescrum-v4
       entryPoints:
         - {% if enable_https %}websecure{% else %}web{% endif %}
+      priority: 100
 {% if enable_https %}
       tls: {}
 {% endif %}
-      priority: 100
 {% endif %}
 
 {% if services.orangescrum %}
@@ -52,10 +52,10 @@ http:
       service: orangescrum
       entryPoints:
         - {% if enable_https %}websecure{% else %}web{% endif %}
+      priority: 100
 {% if enable_https %}
       tls: {}
 {% endif %}
-      priority: 100
 {% endif %}
 
 {% if services.mailhog %}
@@ -65,10 +65,10 @@ http:
       service: mailhog
       entryPoints:
         - {% if enable_https %}websecure{% else %}web{% endif %}
+      priority: 100
 {% if enable_https %}
       tls: {}
 {% endif %}
-      priority: 100
 {% endif %}
 
     # Traefik Dashboard
@@ -77,10 +77,10 @@ http:
       service: api@internal
       entryPoints:
         - {% if enable_https %}websecure{% else %}web{% endif %}
+      priority: 100
 {% if enable_https %}
       tls: {}
 {% endif %}
-      priority: 100
 
   middlewares:
 {% if services.orangescrum_v4 or services.orangescrum or services.durango_pg %}

@@ -36,8 +36,8 @@ COPY php-trust-certs.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/php-trust-certs.sh
 
 # Copy entrypoint scripts
-COPY entrypoints/orangescrum-v4.sh /usr/local/bin/ 2>/dev/null || true
-RUN [ -f /usr/local/bin/orangescrum-v4.sh ] && chmod +x /usr/local/bin/orangescrum-v4.sh || true
+COPY entrypoints/orangescrum-v4.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/orangescrum-v4.sh || true
 
 # Set PHP version for CLI
 RUN update-alternatives --set php /usr/bin/php8.3

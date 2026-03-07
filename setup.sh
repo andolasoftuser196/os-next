@@ -100,8 +100,23 @@ else
 fi
 
 # Start services (build + up)
-echo -e "${BLUE}[6/6] Building and starting services...${NC}"
-docker compose up -d --build
+echo -e "${BLUE}[6/6] Building images and starting services...${NC}"
+# If a generated build script exists, use it to build base and derived images first
+if [ -f "./build-images.sh" ]; then
+    chmod +x ./build-images.sh || true
+    echo -e "${BLUE}Running build-images.sh to build base images...${NC}"
+    if ./build-images.sh; then
+        echo -e "${GREEN}✓ Images built via build-images.sh${NC}"
+    else
+        echo -e "${YELLOW}build-images.sh failed; falling back to 'docker compose build'${NC}"
+        docker compose build || true
+    fi
+else
+    echo -e "${YELLOW}build-images.sh not found; running 'docker compose build'${NC}"
+    docker compose build || true
+fi
+
+docker compose up -d
 echo -e "${GREEN}✓ Services started${NC}"
 
 # Run database setup scripts (best-effort)

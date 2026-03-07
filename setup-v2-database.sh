@@ -52,11 +52,17 @@ echo ""
 
 # Function to check if container is running
 check_container() {
-    if ! docker ps --format '{{.Names}}' | grep -q "^$1$"; then
-        echo -e "${RED}Error: Container $1 is not running${NC}"
-        echo "Please start services first: docker compose up -d"
-        exit 1
+    # Prefer docker compose service presence (handles project name prefixes)
+    if docker compose ps -q "$1" >/dev/null 2>&1 && [ -n "$(docker compose ps -q "$1")" ]; then
+        return 0
     fi
+    # Fallback: match container name suffix
+    if docker ps --format '{{.Names}}' | grep -q "$1$"; then
+        return 0
+    fi
+    echo -e "${RED}Error: Container $1 is not running${NC}"
+    echo "Please start services first: docker compose up -d"
+    exit 1
 }
 
 # Function to wait for database to be ready
@@ -68,9 +74,13 @@ wait_for_db() {
     echo -e "${YELLOW}Waiting for $container to be ready...${NC}"
 
     while [ $attempt -le $max_attempts ]; do
-        if docker compose ps $container | grep -q "healthy"; then
-            echo -e "${GREEN}$container is ready!${NC}"
-            return 0
+        cid=$(docker compose ps -q "$container" 2>/dev/null || true)
+        if [ -n "$cid" ]; then
+            status=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}running{{end}}' "$cid" 2>/dev/null || true)
+            if [ "$status" = "healthy" ] || [ "$status" = "running" ]; then
+                echo -e "${GREEN}$container is ready!${NC}"
+                return 0
+            fi
         fi
         echo "Attempt $attempt/$max_attempts..."
         sleep 2
@@ -91,12 +101,12 @@ wait_for_db "mysql"
 echo ""
 
 echo "Step 3: Checking if database is already populated..."
-EXISTING_TABLES=$(docker exec mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '$DB_NAME';" 2>&1 | grep -v "Using a password" | tail -1)
+EXISTING_TABLES=$(docker compose exec -T mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '$DB_NAME';" 2>&1 | grep -v "Using a password" | tail -1)
 
 if [ "$EXISTING_TABLES" -gt "0" ]; then
     if [ "$FORCE_RESET" = true ]; then
         echo -e "${YELLOW}⚠ Force reset enabled: Dropping and recreating database${NC}"
-        docker exec mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "DROP DATABASE IF EXISTS $DB_NAME; CREATE DATABASE $DB_NAME;" 2>&1 | grep -v "Using a password"
+        docker compose exec -T mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "DROP DATABASE IF EXISTS $DB_NAME; CREATE DATABASE $DB_NAME;" 2>&1 | grep -v "Using a password"
         echo -e "${GREEN}✓ Database reset complete${NC}"
     else
         echo -e "${YELLOW}⚠ Warning: Database already contains $EXISTING_TABLES tables${NC}"
@@ -117,9 +127,9 @@ if [ -f "os-v2/payzilla (6).sql" ]; then
     echo "Found MySQL dump file: os-v2/payzilla (6).sql"
     echo "Importing database (this may take a few minutes)..."
     
-    if docker exec -i mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" "$DB_NAME" < "os-v2/payzilla (6).sql" 2>&1 | grep -v "Using a password" > /dev/null; then
+    if docker compose exec -T mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" "$DB_NAME" < "os-v2/payzilla (6).sql" 2>&1 | grep -v "Using a password" > /dev/null; then
         # Verify import
-        TABLE_COUNT=$(docker exec mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '$DB_NAME';" 2>&1 | grep -v "Using a password" | tail -1)
+        TABLE_COUNT=$(docker compose exec -T mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '$DB_NAME';" 2>&1 | grep -v "Using a password" | tail -1)
         echo -e "${GREEN}✓ MySQL import complete. Tables imported: $TABLE_COUNT${NC}"
     else
         echo -e "${RED}✗ MySQL import failed${NC}"
@@ -138,7 +148,7 @@ echo "MySQL Database Status"
 echo "=================================================="
 echo ""
 
-MYSQL_TABLES=$(docker exec mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '$DB_NAME';" 2>&1 | grep -v "Using a password" | tail -1)
+MYSQL_TABLES=$(docker compose exec -T mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '$DB_NAME';" 2>&1 | grep -v "Using a password" | tail -1)
 if [ "$MYSQL_TABLES" -gt "0" ]; then
     echo -e "Status: ${GREEN}✓ Ready${NC}"
     echo "Tables: $MYSQL_TABLES"

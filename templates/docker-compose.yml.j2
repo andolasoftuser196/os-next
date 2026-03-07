@@ -16,7 +16,7 @@ services:
       - "--api.insecure=false"
       - "--providers.file.directory=/etc/traefik/dynamic"
       - "--providers.file.watch=true"
-      - "--providers.docker=true"
+      - "--providers.docker=false"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
 {% if enable_https %}
@@ -100,7 +100,7 @@ services:
         BUILDER_UID: {{ builder_uid }}
         BASE_IMAGE: orangescrum-base:{{ domain | replace('.', '-') }}
 {% if services.enable_node %}
-        NODE_VERSION: {{ node_version | default('20') }}
+        NODE_VERSION: {{ node_version | default('20.x') }}
 {% endif %}
     image: orangescrum-{% if services.enable_node %}php8.3-node{% else %}php8.3{% endif %}:{{ domain | replace('.', '-') }}
     container_name: {{ domain_prefix }}-orangescrum-v4
