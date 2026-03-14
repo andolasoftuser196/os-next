@@ -19,9 +19,10 @@ update-ca-certificates
 # linuxserver/chromium uses /config as the user home directory
 NSS_DB="sql:/config/.pki/nssdb"
 mkdir -p /config/.pki/nssdb
-certutil -N -d "$NSS_DB" --empty-password 2>/dev/null || true
+# Redirect stdin from /dev/null to prevent certutil from hanging waiting for input
+timeout 10 certutil -N -d "$NSS_DB" --empty-password </dev/null 2>/dev/null || true
 # Remove old entry if it exists, then re-add fresh
-certutil -D -n 'ossiba.local CA' -d "$NSS_DB" 2>/dev/null || true
-certutil -A -n 'ossiba.local CA' -t 'CT,,' -i "$CERT_SRC" -d "$NSS_DB"
-# Ensure the abc user (linuxserver default) can access the NSS db
-chown -R abc:abc /config/.pki 2>/dev/null || true
+timeout 10 certutil -D -n 'ossiba.local CA' -d "$NSS_DB" </dev/null 2>/dev/null || true
+timeout 10 certutil -A -n 'ossiba.local CA' -t 'CT,,' -i "$CERT_SRC" -d "$NSS_DB" </dev/null
+# Ensure the browser user can access the NSS db (linuxserver uses abc or CUSTOM_USER)
+chown -R 1000:1000 /config/.pki 2>/dev/null || true
