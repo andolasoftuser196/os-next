@@ -1,0 +1,28 @@
+FROM mcr.microsoft.com/playwright:v1.45.0-jammy
+
+# playwright + chromium are pre-installed in this image - no heavy downloads needed
+# Only add the small VNC stack (~30MB)
+RUN echo 'Acquire::Retries "10";' > /etc/apt/apt.conf.d/80retries \
+  && echo 'Acquire::http::Timeout "120";' >> /etc/apt/apt.conf.d/80retries \
+  && DEBIAN_FRONTEND=noninteractive apt-get update -qq \
+  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    xvfb \
+    fluxbox \
+    x11vnc \
+    novnc \
+    websockify \
+  && ln -sf /usr/share/novnc/vnc.html /usr/share/novnc/index.html \
+  && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+ENV DISPLAY=:0
+ENV VNC_PORT=5900
+ENV NOVNC_PORT=6080
+
+WORKDIR /workspace
+
+COPY entrypoints/playwright-vnc-init.sh /usr/local/bin/playwright-vnc-init.sh
+RUN chmod +x /usr/local/bin/playwright-vnc-init.sh
+
+EXPOSE 5900 6080
+
+CMD ["/usr/local/bin/playwright-vnc-init.sh"]
