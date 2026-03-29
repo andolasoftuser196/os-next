@@ -8,13 +8,13 @@ Wants=network-online.target
 Type=simple
 User=orangescrum
 Group=orangescrum
-WorkingDirectory=/opt/application
+WorkingDirectory=@@INSTALL_DIR@@
 
 # Load environment variables from .env file
-EnvironmentFile=/opt/application/.env
+EnvironmentFile=@@INSTALL_DIR@@/.env
 
 # Start the FrankenPHP binary in server mode
-ExecStart=/opt/application/bin/orangescrum php-server -r webroot -l ${BIND_IP:-127.0.0.1}:${PORT:-8080}
+ExecStart=@@INSTALL_DIR@@/bin/orangescrum php-server -r webroot -l ${BIND_IP:-127.0.0.1}:${PORT:-8080}
 
 # Restart policy
 Restart=on-failure
@@ -25,7 +25,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/orangescrum/logs /var/log/orangescrum
+ReadWritePaths=@@INSTALL_DIR@@ /var/log/orangescrum
 
 # Resource limits
 LimitNOFILE=65536

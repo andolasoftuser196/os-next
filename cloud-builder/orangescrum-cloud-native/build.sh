@@ -5,10 +5,15 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILDER_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Load version and build config from single source of truth
+source "$BUILDER_ROOT/lib/config.sh"
+load_version
+load_build_conf
+
 COMMON_DIR="$BUILDER_ROOT/orangescrum-cloud-common"
 NATIVE_SOURCE="$SCRIPT_DIR"
 OUTPUT_DIR="${DIST_NATIVE_DIR:-$BUILDER_ROOT/dist-native}"
-VERSION="${VERSION:-v26.1.1}"
 TIMESTAMP="${BUILD_TIMESTAMP:-$(date +%Y%m%d_%H%M%S)}"
 
 echo "=========================================="
@@ -66,6 +71,11 @@ fi
 cp "$NATIVE_SOURCE/.env.example" "$OUTPUT_DIR/"
 echo "  [OK] .env.example"
 
+# Copy shared library
+mkdir -p "$OUTPUT_DIR/lib"
+cp "$BUILDER_ROOT/lib/frankenphp-common.sh" "$OUTPUT_DIR/lib/"
+echo "  [OK] lib/frankenphp-common.sh"
+
 # Copy systemd service files if they exist
 if [ -d "$NATIVE_SOURCE/systemd" ]; then
     cp -r "$NATIVE_SOURCE/systemd" "$OUTPUT_DIR/"
@@ -98,11 +108,10 @@ if [ "$BINARY_EXISTS" = true ]; then
     cp "$BINARY" "$OUTPUT_DIR/bin/orangescrum"
     chmod +x "$OUTPUT_DIR/bin/orangescrum"
     echo "  [OK] bin/orangescrum ($BINARY_SIZE)"
-    
-    # Also copy as osv4-prod for compatibility
-    cp "$BINARY" "$OUTPUT_DIR/bin/osv4-prod"
-    chmod +x "$OUTPUT_DIR/bin/osv4-prod"
-    echo "  [OK] bin/osv4-prod (symlink for compatibility)"
+
+    # Symlink for backward compatibility (saves ~340MB vs full copy)
+    ln -sf orangescrum "$OUTPUT_DIR/bin/osv4-prod"
+    echo "  [OK] bin/osv4-prod -> orangescrum (symlink)"
 else
     echo ""
     echo "[WARNING]  Skipping binary copy (not found)"

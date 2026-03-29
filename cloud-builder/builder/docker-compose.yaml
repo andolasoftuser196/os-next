@@ -10,11 +10,10 @@ services:
       context: .
       dockerfile: base-build.Dockerfile
       args:
-        # Allow overrides when running compose builds: TEST_BASE keeps the built binary,
-        # NO_COMPRESS controls compression behavior (default kept as before).
+        FRANKENPHP_VERSION: "${FRANKENPHP_VERSION:-1.11.1}"
         TEST_BASE: "${TEST_BASE:-0}"
         NO_COMPRESS: "${NO_COMPRESS:-1}"
-    image: orangescrum-cloud-base:latest
+    image: ${BASE_IMAGE_NAME:-orangescrum-cloud-base}:latest
     profiles:
       - base-build
     command: echo "Base build complete"
@@ -29,8 +28,8 @@ services:
       context: .
       dockerfile: app-embed.Dockerfile
       args:
-        BASE_IMAGE: orangescrum-cloud-base:latest
+        BASE_IMAGE: ${BASE_IMAGE_NAME:-orangescrum-cloud-base}:latest
         BUILD_DATE: "${BUILD_DATE:-$(date +%s)}"
         NO_COMPRESS: "${NO_COMPRESS:-1}"
-    image: orangescrum-cloud-app:latest
+    image: ${APP_IMAGE_NAME:-orangescrum-cloud-app}:latest
     command: tail -f /dev/null

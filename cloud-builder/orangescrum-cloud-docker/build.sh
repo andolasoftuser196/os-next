@@ -5,10 +5,15 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILDER_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Load version and build config from single source of truth
+source "$BUILDER_ROOT/lib/config.sh"
+load_version
+load_build_conf
+
 COMMON_DIR="$BUILDER_ROOT/orangescrum-cloud-common"
 DOCKER_SOURCE="$SCRIPT_DIR"
 OUTPUT_DIR="${DIST_DOCKER_DIR:-$BUILDER_ROOT/dist-docker}"
-VERSION="${VERSION:-v26.1.1}"
 TIMESTAMP="${BUILD_TIMESTAMP:-$(date +%Y%m%d_%H%M%S)}"
 
 echo "=========================================="
@@ -61,6 +66,11 @@ echo "  [OK] docker-compose.services.yml"
 cp "$DOCKER_SOURCE/entrypoint.sh" "$OUTPUT_DIR/"
 chmod +x "$OUTPUT_DIR/entrypoint.sh"
 echo "  [OK] entrypoint.sh"
+
+# Copy shared library
+mkdir -p "$OUTPUT_DIR/lib"
+cp "$BUILDER_ROOT/lib/frankenphp-common.sh" "$OUTPUT_DIR/lib/"
+echo "  [OK] lib/frankenphp-common.sh"
 
 if [ -f "$DOCKER_SOURCE/.dockerignore" ]; then
     cp "$DOCKER_SOURCE/.dockerignore" "$OUTPUT_DIR/"

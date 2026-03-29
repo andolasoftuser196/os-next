@@ -136,6 +136,14 @@
         #}
         #vulcain
 
+        # ============================================
+        # Lightweight Health Check (no PHP overhead)
+        # ============================================
+        # Responds instantly from Caddy — use for ALB/k8s liveness probes
+        handle /healthz {
+                respond "ok" 200
+        }
+
         {$CADDY_SERVER_EXTRA_DIRECTIVES}
 
         # PHP fallback for dynamic requests

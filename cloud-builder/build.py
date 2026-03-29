@@ -1,24 +1,22 @@
 #!/usr/bin/env python3
 """Build FrankenPHP embedded binary for OrangeScrum V4.
 
-This script:
-1) Archives the OrangeScrum V4 app from ../apps/orangescrum-v4
-2) Builds the FrankenPHP embedded binary using the builder compose stack
-3) Extracts the produced static binary into:
-   - orangescrum-cloud-docker/orangescrum-app/osv4-prod (Docker deployment)
-   - orangescrum-cloud-native/orangescrum-app/osv4-prod (Native deployment)
-4) Optionally builds + starts the orangescrum-app service (Docker only)
+Usage:
+    python3 build.py                     # Build + deploy
+    python3 build.py --skip-deploy       # Build only (production workflow)
+    python3 build.py --check             # Pre-flight checks only
+    python3 build.py --verify dist/...   # Verify a built dist package
+    python3 build.py --rebuild-base      # Force recompile FrankenPHP base
 
-Notes:
-- Only builds the orangescrum-v4 application (not durango-pg or orangescrum v2)
-- Database is expected to be external (PostgreSQL with orangescrum database)
-- Base image build is skipped automatically if the image already exists
+All build parameters are read from VERSION + build.conf. No hardcoded values.
 """
 
 from __future__ import annotations
 
 import argparse
-import io
+import fnmatch
+import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -28,50 +26,23 @@ from pathlib import Path
 
 import docker
 
-ROOT = Path(__file__).parent.resolve()
-REPO = (ROOT / "../apps/orangescrum-v4").resolve()
-BUILDER = ROOT / "builder"
-PACKAGE = BUILDER / "package"
-BUILDER_COMPOSE_FILE = BUILDER / "docker-compose.yaml"
-
-# New separated structure
-ORANGESCRUM_COMMON_DIR = ROOT / "orangescrum-cloud-common"
-ORANGESCRUM_DOCKER_SOURCE = ROOT / "orangescrum-cloud-docker"
-ORANGESCRUM_NATIVE_SOURCE = ROOT / "orangescrum-cloud-native"
-
-# Build output directories - will be set with timestamp in main()
-DIST_BASE_DIR = None
-DIST_DOCKER_DIR = None
-DIST_NATIVE_DIR = None
-TIMESTAMP = None
-
-# Legacy directory (deprecated - for backwards compatibility with old orangescrum-cloud)
-ORANGESCRUM_EE_DIR = ROOT / "orangescrum-cloud"
-
-# Common paths (shared binary location)
-COMMON_BINARY = ORANGESCRUM_COMMON_DIR / "orangescrum-app/osv4-prod"
-COMMON_CONFIG_OVERRIDES_DIR = ORANGESCRUM_COMMON_DIR / "config"
-
-# Use common paths for config overrides and binary during build
-CONFIG_OVERRIDES_DIR = COMMON_CONFIG_OVERRIDES_DIR
-ORANGESCRUM_EE_BINARY = COMMON_BINARY
-
-FRANKENPHP_BASE_IMAGE = os.environ.get(
-    "FRANKENPHP_BASE_IMAGE", "orangescrum-cloud-base:latest"
-)
+from lib.config import BuildConfig
 
 
-def _run_cmd(
+# ---------------------------------------------------------------------------
+# Utilities (stateless)
+# ---------------------------------------------------------------------------
+
+def _run(
     cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None = None
 ):
-    print(f"Running: {' '.join(cmd)}")
+    print(f"  $ {' '.join(cmd)}")
     subprocess.check_call(cmd, cwd=str(cwd) if cwd else None, env=env)
 
 
-def _run_cmd_capture(
+def _run_capture(
     cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None = None
 ) -> str:
-    print(f"Running: {' '.join(cmd)}")
     return subprocess.check_output(
         cmd, cwd=str(cwd) if cwd else None, env=env, text=True
     ).strip()
@@ -83,655 +54,509 @@ def _clean_dir(path: Path):
     path.mkdir(parents=True, exist_ok=True)
 
 
-def _copy_config_overrides():
-    """Copy modified config files from orangescrum-cloud/config to package/config"""
-    if not CONFIG_OVERRIDES_DIR.exists():
-        print(f"Warning: Config overrides directory not found: {CONFIG_OVERRIDES_DIR}")
-        return
-    
-    package_config = PACKAGE / "config"
-    if not package_config.exists():
-        print(f"Warning: Package config directory not found: {package_config}")
-        return
-    
-    config_files = list(CONFIG_OVERRIDES_DIR.glob("*.example.php"))
-    if not config_files:
-        print(f"No config override files found in {CONFIG_OVERRIDES_DIR}")
-        return
-    
-    print(f"Copying {len(config_files)} config override files...")
-    for config_file in config_files:
-        dest = package_config / config_file.name
-        shutil.copy2(config_file, dest)
-        print(f"  ✓ Copied {config_file.name}")
+# ---------------------------------------------------------------------------
+# Builder class — all state lives here, zero globals
+# ---------------------------------------------------------------------------
 
+class Builder:
+    def __init__(self, config: BuildConfig):
+        self.c = config
+        self._docker: docker.DockerClient | None = None
+        self._step_num = 0
 
-def _archive_repo() -> Path:
-    """Archive OrangeScrum V4 app directory into a tar file."""
-    print(f"Archiving OrangeScrum V4 from {REPO}...")
-    
-    if not REPO.exists():
-        raise FileNotFoundError(f"OrangeScrum V4 directory not found: {REPO}")
-    
-    archive_path = BUILDER / "repo.tar"
-    
-    # Try git archive first (cleanest, only tracked files)
-    git_dir = REPO / ".git"
-    if git_dir.exists():
-        print("Using git archive (only tracked files)...")
+    @property
+    def docker_client(self) -> docker.DockerClient:
+        if self._docker is None:
+            self._docker = docker.from_env()
+        return self._docker
+
+    def close(self):
+        if self._docker:
+            self._docker.close()
+
+    # -- Step runner with timing ------------------------------------------
+
+    def _step(self, name: str):
+        """Print a step header and return the step number."""
+        self._step_num += 1
+        print(f"\n[Step {self._step_num}] {name}")
+        return self._step_num
+
+    # -- Pre-flight -------------------------------------------------------
+
+    def check(self) -> bool:
+        print("Pre-flight checks...")
+        ok = True
+
         try:
-            _run_cmd(
-                [
-                    "git",
-                    "-C",
-                    str(REPO),
-                    "archive",
-                    "--format=tar",
-                    "HEAD",
-                    "-o",
-                    str(archive_path),
-                ]
-            )
-            print(f"✓ Created archive via git: {archive_path}")
-            return archive_path
-        except subprocess.CalledProcessError:
-            print("Git archive failed, falling back to manual tar...")
-    
-    # Fallback: Create tar archive manually with exclusions
-    print("Creating tar archive with exclusions...")
-    
-    # Define exclusion patterns (matches .dockerignore + common build artifacts)
-    exclude_patterns = {
-        '.git', '.github', '.gitignore', '.dockerignore',
-        '.env', '.env.*',
-        'vendor', 'node_modules',
-        'tmp', 'logs', 'cache',
-        '.idea', '.vscode', '.vs', '.settings',
-        '*.log', '*.cache',
-        '.ddev', '.devcontainer',
-        'composer.lock', 'package-lock.json',
-        '.phpunit.result.cache',
-        '__pycache__', '*.pyc',
-        '.DS_Store', 'Thumbs.db'
-    }
-    
-    def tar_filter(tarinfo):
-        """Filter function to exclude unwanted files/directories"""
-        # Get relative path from REPO
-        rel_path = Path(tarinfo.name).relative_to(REPO) if tarinfo.name.startswith(str(REPO)) else Path(tarinfo.name)
-        
-        # Check if any part of the path matches exclusion patterns
-        parts = rel_path.parts
-        for part in parts:
-            # Exact match
-            if part in exclude_patterns:
-                return None
-            # Pattern match (simple glob)
-            for pattern in exclude_patterns:
-                if '*' in pattern:
-                    import fnmatch
-                    if fnmatch.fnmatch(part, pattern):
-                        return None
-        
-        return tarinfo
-    
-    with tarfile.open(archive_path, "w") as tar:
-        tar.add(REPO, arcname=".", filter=tar_filter, recursive=True)
-    
-    print(f"✓ Created archive: {archive_path}")
-    return archive_path
+            docker.from_env().ping()
+            print("  [OK] Docker daemon is running")
+        except Exception as e:
+            print(f"  [FAIL] Docker daemon: {e}")
+            ok = False
 
+        if self.c.repo.exists():
+            print(f"  [OK] App source: {self.c.repo}")
+        else:
+            print(f"  [FAIL] App source not found: {self.c.repo}")
+            ok = False
 
-def _extract_archive(archive_path: Path, dest: Path):
-    print(f"Extracting archive to {dest}...")
-    with tarfile.open(archive_path, "r") as tar:
-        tar.extractall(path=dest)
-    print(f"✓ Extracted to {dest}")
+        if self.c.builder_compose_file.exists():
+            print(f"  [OK] Builder compose: {self.c.builder_compose_file}")
+        else:
+            print(f"  [FAIL] Builder compose not found: {self.c.builder_compose_file}")
+            ok = False
 
+        print(f"  [INFO] Version: {self.c.version}")
+        print(f"  [INFO] FrankenPHP: {self.c.frankenphp_version}, PHP: {self.c.php_version}")
+        print(f"  [INFO] Git SHA: {self.c.git_sha}")
+        return ok
 
-def _ensure_base_image(docker_client: docker.DockerClient, rebuild: bool):
-    if rebuild:
+    # -- Archive -----------------------------------------------------------
+
+    def archive_app(self) -> Path:
+        """Archive OrangeScrum V4 app into a tar file."""
+        archive_path = self.c.builder_dir / "repo.tar"
+
+        git_dir = self.c.repo / ".git"
+        if git_dir.exists():
+            print("  Using git archive (tracked files only)...")
+            try:
+                _run(
+                    ["git", "-C", str(self.c.repo), "archive", "--format=tar",
+                     "HEAD", "-o", str(archive_path)]
+                )
+                return archive_path
+            except subprocess.CalledProcessError:
+                print("  Git archive failed, falling back to manual tar...")
+
+        print("  Creating tar archive with exclusions...")
+        exclude = {
+            ".git", ".github", ".gitignore", ".dockerignore",
+            ".env", ".env.*", "vendor", "node_modules",
+            "tmp", "logs", "cache", ".idea", ".vscode",
+            "composer.lock", "package-lock.json",
+            "__pycache__", ".DS_Store",
+        }
+
+        def tar_filter(tarinfo):
+            rel = Path(tarinfo.name)
+            for part in rel.parts:
+                if part in exclude:
+                    return None
+                if any(fnmatch.fnmatch(part, p) for p in exclude if "*" in p):
+                    return None
+            return tarinfo
+
+        with tarfile.open(archive_path, "w") as tar:
+            tar.add(self.c.repo, arcname=".", filter=tar_filter, recursive=True)
+        return archive_path
+
+    def extract_archive(self, archive_path: Path):
+        with tarfile.open(archive_path, "r") as tar:
+            tar.extractall(path=self.c.package_dir)
+
+    def copy_config_overrides(self):
+        config_dir = self.c.common_dir / "config"
+        pkg_config = self.c.package_dir / "config"
+        if not config_dir.exists() or not pkg_config.exists():
+            return
+        files = list(config_dir.glob("*.example.php"))
+        if files:
+            print(f"  Copying {len(files)} config override(s)...")
+            for f in files:
+                shutil.copy2(f, pkg_config / f.name)
+
+    # -- Docker builds -----------------------------------------------------
+
+    def ensure_base_image(self, rebuild: bool):
+        if rebuild:
+            try:
+                self.docker_client.images.remove(self.c.base_image, force=True)
+                print(f"  Removed existing: {self.c.base_image}")
+            except docker.errors.ImageNotFound:
+                pass
+
         try:
-            docker_client.images.remove(FRANKENPHP_BASE_IMAGE, force=True)
-            print(f"Removed existing base image: {FRANKENPHP_BASE_IMAGE}")
+            self.docker_client.images.get(self.c.base_image)
+            print(f"  Base image found: {self.c.base_image} (cached)")
+            return
         except docker.errors.ImageNotFound:
             pass
 
-    print(f"Checking for base image {FRANKENPHP_BASE_IMAGE}...")
-    try:
-        docker_client.images.get(FRANKENPHP_BASE_IMAGE)
-        print("✓ Base image found; skipping base build.")
-        return
-    except docker.errors.ImageNotFound:
-        pass
-
-    print("Base image not found; building base FrankenPHP image (this may take a while)...")
-    env = os.environ.copy()
-    env["DOCKER_BUILDKIT"] = "1"
-    _run_cmd(
-        [
-            "docker",
-            "compose",
-            "-f",
-            str(BUILDER_COMPOSE_FILE),
-            "--profile",
-            "base-build",
-            "build",
-            "frankenphp-base-builder",
-        ],
-        cwd=BUILDER,
-        env=env,
-    )
-    print("✓ Base image built successfully")
-
-
-def _build_app_embed():
-    print("Embedding OrangeScrum V4 application into FrankenPHP...")
-    env = os.environ.copy()
-    env["BUILD_DATE"] = str(int(time.time()))
-    env.setdefault("FRANKENPHP_BASE_IMAGE", FRANKENPHP_BASE_IMAGE)
-    # Ensure BuildKit is enabled so Dockerfile cache mounts are honored
-    env.setdefault("DOCKER_BUILDKIT", "1")
-    _run_cmd(
-        [
-            "docker",
-            "compose",
-            "-f",
-            str(BUILDER_COMPOSE_FILE),
-            "build",
-            "orangescrum-app-builder",
-        ],
-        cwd=BUILDER,
-        env=env,
-    )
-    print("✓ Application embedded successfully")
-
-
-def _start_app_builder_container():
-    print("Starting builder container...")
-    _run_cmd(
-        [
-            "docker",
-            "compose",
-            "-f",
-            str(BUILDER_COMPOSE_FILE),
-            "up",
-            "-d",
-            "orangescrum-app-builder",
-        ],
-        cwd=BUILDER,
-    )
-    print("✓ Builder container started")
-
-
-def _stop_builder_stack():
-    print("Stopping builder stack...")
-    _run_cmd(
-        [
-            "docker",
-            "compose",
-            "-f",
-            str(BUILDER_COMPOSE_FILE),
-            "down",
-            "--remove-orphans",
-        ],
-        cwd=BUILDER,
-    )
-    print("✓ Builder stack stopped")
-
-
-def _copy_frankenphp_binary(docker_client: docker.DockerClient):
-    print("Copying FrankenPHP binary from builder container...")
-    
-    # Create output directory in NEW common location
-    common_binary_dir = ORANGESCRUM_COMMON_DIR / "orangescrum-app"
-    common_binary_dir.mkdir(parents=True, exist_ok=True)
-    common_binary = common_binary_dir / "osv4-prod"
-
-    # Get container ID from docker compose
-    container_id = _run_cmd_capture(
-        [
-            "docker",
-            "compose",
-            "-f",
-            str(BUILDER_COMPOSE_FILE),
-            "ps",
-            "-q",
-            "orangescrum-app-builder",
-        ],
-        cwd=BUILDER,
-    )
-    if not container_id:
-        raise RuntimeError(
-            "Could not find builder container id (docker compose ps -q returned empty)"
+        print("  Building base image (this may take 20-30 min on first run)...")
+        _run(
+            ["docker", "compose", "-f", str(self.c.builder_compose_file),
+             "--profile", "base-build", "build", "frankenphp-base-builder"],
+            cwd=self.c.builder_dir,
+            env=self.c.build_env(),
         )
 
-    container = docker_client.containers.get(container_id)
-    bits, _ = container.get_archive("/go/src/app/dist/frankenphp-linux-x86_64")
+    def build_app_embed(self):
+        _run(
+            ["docker", "compose", "-f", str(self.c.builder_compose_file),
+             "build", "orangescrum-app-builder"],
+            cwd=self.c.builder_dir,
+            env=self.c.build_env(),
+        )
 
-    tar_stream = io.BytesIO(b"".join(bits))
-    
-    # Extract to NEW common location
-    with tarfile.open(fileobj=tar_stream) as tar:
-        tar.extractall(path=common_binary_dir)
+    def stop_builder_stack(self):
+        _run(
+            ["docker", "compose", "-f", str(self.c.builder_compose_file),
+             "down", "--remove-orphans"],
+            cwd=self.c.builder_dir,
+        )
 
-    extracted_binary = common_binary_dir / "frankenphp-linux-x86_64"
-    if extracted_binary.exists():
-        extracted_binary.rename(common_binary)
+    # -- Binary extraction -------------------------------------------------
 
-    common_binary.chmod(0o755)
-    size_mb = common_binary.stat().st_size / (1024 * 1024)
-    print(f"✓ FrankenPHP binary extracted to: {common_binary} ({size_mb:.1f} MB)")
+    def extract_binary(self):
+        """Extract FrankenPHP binary using docker create + cp (no running container)."""
+        binary_dir = self.c.binary_path.parent
+        binary_dir.mkdir(parents=True, exist_ok=True)
 
-
-
-
-def _resolve_env_file(path_str: str | None) -> Path:
-    """Resolve which .env file to use"""
-    if path_str:
-        return Path(path_str).expanduser().resolve()
-    if APP_ENV_FILE_DEFAULT.exists():
-        return APP_ENV_FILE_DEFAULT
-    return APP_ENV_FILE_EXAMPLE
-
-
-def _wait_for_app_healthy(
-    docker_client: docker.DockerClient,
-    timeout_s: int = 180,
-):
-    """Wait for orangescrum-app container to become healthy"""
-    print("Waiting for orangescrum-app to become healthy...")
-
-    start = time.time()
-    while time.time() - start < timeout_s:
+        container_id = _run_capture(
+            ["docker", "create", self.c.app_image, "true"]
+        )
         try:
-            # Try to get container by service name
-            cid = _run_cmd_capture(
-                ["docker", "compose", "-f", str(APP_COMPOSE_FILE), "ps", "-q", "orangescrum-app"],
-                cwd=DIST_DOCKER_DIR,
+            _run([
+                "docker", "cp",
+                f"{container_id}:/go/src/app/dist/frankenphp-linux-x86_64",
+                str(self.c.binary_path),
+            ])
+        finally:
+            subprocess.call(
+                ["docker", "rm", "-f", container_id], stdout=subprocess.DEVNULL
             )
-            if not cid:
-                time.sleep(2)
-                continue
-                
-            container = docker_client.containers.get(cid)
-        except Exception:
-            time.sleep(2)
-            continue
 
-        state = container.attrs.get("State", {})
-        health = state.get("Health", {})
-        status = health.get("Status") or state.get("Status")
+        self.c.binary_path.chmod(0o755)
+        size_mb = self.c.binary_path.stat().st_size / (1024 * 1024)
+        print(f"  Binary: {self.c.binary_path} ({size_mb:.1f} MB)")
 
-        if status == "healthy":
-            print("✓ orangescrum-app is healthy")
+    def validate_binary(self):
+        """Verify the extracted binary is a valid static ELF."""
+        bp = self.c.binary_path
+        if not bp.exists():
+            raise RuntimeError(f"Binary not found: {bp}")
+
+        size = bp.stat().st_size
+        if size < 50 * 1024 * 1024:
+            raise RuntimeError(f"Binary too small ({size} bytes), expected >50 MB")
+
+        with open(bp, "rb") as f:
+            magic = f.read(4)
+        if magic != b"\x7fELF":
+            raise RuntimeError(f"Not a valid ELF binary (magic: {magic!r})")
+
+        result = subprocess.run(["file", str(bp)], capture_output=True, text=True)
+        is_static = "statically linked" in result.stdout
+        print(f"  ELF: valid, {size / (1024*1024):.1f} MB, "
+              f"{'static' if is_static else 'DYNAMIC (warning)'}")
+
+    # -- Deployment packages -----------------------------------------------
+
+    def build_deployment_folders(self):
+        self.c.dist_base_dir.mkdir(parents=True, exist_ok=True)
+        env = self.c.dist_env()
+
+        for name, source_dir in [
+            ("Docker", self.c.docker_source_dir),
+            ("Native", self.c.native_source_dir),
+        ]:
+            script = source_dir / "build.sh"
+            if script.exists():
+                print(f"  Building {name} deployment...")
+                _run(["bash", str(script)], cwd=source_dir, env=env)
+            else:
+                print(f"  [WARN] {script} not found")
+
+    def write_manifests(self):
+        """Write build-manifest.json to both dist directories."""
+        for d in [self.c.dist_docker_dir, self.c.dist_native_dir]:
+            if d.exists():
+                path = self.c.write_manifest(d)
+                print(f"  Manifest: {path}")
+
+    def write_checksums(self):
+        """Write SHA256 checksum files next to the binaries in dist."""
+        pairs = [
+            (self.c.dist_docker_dir / "orangescrum-app" / self.c.binary_name,),
+            (self.c.dist_native_dir / "bin" / "orangescrum",),
+        ]
+        for (binary,) in pairs:
+            if binary.exists():
+                sha = hashlib.sha256(binary.read_bytes()).hexdigest()
+                checksum_file = binary.with_suffix(binary.suffix + ".sha256")
+                checksum_file.write_text(f"{sha}  {binary.name}\n")
+                print(f"  Checksum: {checksum_file.name}")
+
+    def prune_old_dists(self):
+        dist_root = self.c.root / "dist"
+        if not dist_root.exists():
+            return
+        builds = sorted(
+            [d for d in dist_root.iterdir() if d.is_dir()],
+            key=lambda p: p.name, reverse=True,
+        )
+        to_remove = builds[self.c.dist_keep_count:]
+        if to_remove:
+            print(f"  Pruning {len(to_remove)} old build(s)...")
+            for old in to_remove:
+                shutil.rmtree(old)
+
+    def verify_dist(self, dist_dir: Path) -> bool:
+        """Verify a dist package against its manifest."""
+        manifest_path = dist_dir / "build-manifest.json"
+        if not manifest_path.exists():
+            print(f"[FAIL] No build-manifest.json in {dist_dir}")
+            return False
+
+        manifest = json.loads(manifest_path.read_text())
+        print(f"  Version: {manifest.get('version')}")
+        print(f"  Git SHA: {manifest.get('git_sha')}")
+        print(f"  Built: {manifest.get('build_timestamp')}")
+
+        expected_sha = manifest.get("binary_sha256")
+        if not expected_sha:
+            print("  [WARN] No binary_sha256 in manifest")
             return True
-        if status in {"exited", "dead"}:
-            logs = container.logs(tail=50).decode("utf-8", errors="ignore")
-            raise RuntimeError(
-                f"orangescrum-app container is not running (status={status}). Logs:\n{logs}"
-            )
 
-        time.sleep(2)
+        # Find the binary
+        for candidate in [
+            dist_dir / "orangescrum-app" / "osv4-prod",
+            dist_dir / "bin" / "orangescrum",
+        ]:
+            if candidate.exists():
+                actual_sha = hashlib.sha256(candidate.read_bytes()).hexdigest()
+                if actual_sha == expected_sha:
+                    print(f"  [OK] Binary SHA256 matches: {actual_sha[:16]}...")
+                    return True
+                else:
+                    print(f"  [FAIL] SHA256 mismatch!")
+                    print(f"    Expected: {expected_sha}")
+                    print(f"    Actual:   {actual_sha}")
+                    return False
 
-    print(f"⚠️  orangescrum-app did not become healthy within {timeout_s}s")
-    return False
+        print("  [FAIL] Binary not found in dist")
+        return False
+
+    # -- Deploy (optional) -------------------------------------------------
+
+    def deploy(self, env_file: Path, env_overrides: dict[str, str]):
+        compose_file = self.c.dist_docker_dir / "docker-compose.yaml"
+        env = self.c.build_env()
+        env.update(env_overrides)
+
+        _run(
+            ["docker", "compose", "-f", str(compose_file),
+             "--env-file", str(env_file), "up", "-d", "--build"],
+            cwd=self.c.dist_docker_dir, env=env,
+        )
+
+    def wait_healthy(self, timeout_s: int = 180) -> bool:
+        compose_file = self.c.dist_docker_dir / "docker-compose.yaml"
+        print("  Waiting for healthy status...")
+        start = time.time()
+        while time.time() - start < timeout_s:
+            try:
+                cid = _run_capture(
+                    ["docker", "compose", "-f", str(compose_file),
+                     "ps", "-q", "orangescrum-app"],
+                    cwd=self.c.dist_docker_dir,
+                )
+                if cid:
+                    c = self.docker_client.containers.get(cid)
+                    health = c.attrs.get("State", {}).get("Health", {}).get("Status")
+                    if health == "healthy":
+                        print("  [OK] Healthy")
+                        return True
+                    status = c.attrs.get("State", {}).get("Status")
+                    if status in {"exited", "dead"}:
+                        raise RuntimeError(f"Container {status}")
+            except docker.errors.NotFound:
+                pass
+            except RuntimeError:
+                raise
+            time.sleep(3)
+        print(f"  [WARN] Not healthy after {timeout_s}s")
+        return False
+
+    # -- Main build pipeline -----------------------------------------------
+
+    def run(self, args) -> int:
+        build_start = time.time()
+
+        print("=" * 60)
+        print(f"OrangeScrum V4 FrankenPHP Builder  {self.c.version}")
+        print(f"  FrankenPHP {self.c.frankenphp_version} / PHP {self.c.php_version}")
+        print(f"  Git: {self.c.git_sha}  Host: {self.c.builder_host}")
+        print("=" * 60)
+
+        if not self.check():
+            print("\nPre-flight checks failed.")
+            return 1
+
+        try:
+            # -- Prepare application source --
+            if not args.skip_archive:
+                self._step("Prepare package directory")
+                _clean_dir(self.c.package_dir)
+
+                self._step("Archive application source")
+                archive = self.archive_app()
+
+                self._step("Extract to package directory")
+                self.extract_archive(archive)
+                archive.unlink(missing_ok=True)
+
+                self._step("Copy configuration overrides")
+                self.copy_config_overrides()
+            elif args.clean and self.c.package_dir.exists():
+                _clean_dir(self.c.package_dir)
+
+            # -- Build FrankenPHP --
+            if not args.skip_base:
+                self._step("Ensure FrankenPHP base image")
+                self.ensure_base_image(args.rebuild_base)
+
+            self._step("Embed application into FrankenPHP")
+            self.build_app_embed()
+
+            self._step("Extract binary")
+            self.extract_binary()
+
+            self._step("Validate binary")
+            self.validate_binary()
+
+            # -- Package --
+            self._step("Build deployment packages")
+            self.build_deployment_folders()
+
+            self._step("Write manifests and checksums")
+            self.write_manifests()
+            self.write_checksums()
+
+            self._step("Clean up builder")
+            self.stop_builder_stack()
+
+            self._step("Prune old builds")
+            self.prune_old_dists()
+
+            if not args.keep_package and self.c.package_dir.exists():
+                shutil.rmtree(self.c.package_dir)
+
+            # -- Optional deploy --
+            if not args.skip_deploy:
+                self._step("Deploy (Docker)")
+                env_example = self.c.dist_docker_dir / ".env.example"
+                env_default = self.c.dist_docker_dir / ".env"
+                if not env_default.exists() and env_example.exists():
+                    shutil.copy2(env_example, env_default)
+                env_file = Path(args.env_file) if args.env_file else env_default
+                overrides = _env_overrides_from_args(args)
+                self.deploy(env_file, overrides)
+                self.wait_healthy()
+
+            # -- Summary --
+            elapsed = time.time() - build_start
+            print("\n" + "=" * 60)
+            print(f"Build Complete!  ({elapsed:.0f}s)")
+            print("=" * 60)
+            print(f"\n  Binary:   {self.c.binary_path}")
+            print(f"  Docker:   {self.c.dist_docker_dir}")
+            print(f"  Native:   {self.c.dist_native_dir}")
+            print(f"  Manifest: build-manifest.json")
+            print(f"\n  Deploy:")
+            print(f"    scp -r {self.c.dist_base_dir} user@server:/opt/orangescrum/")
+            print(f"    cd /opt/orangescrum/{self.c.timestamp}/dist-docker")
+            print(f"    cp .env.example .env && nano .env")
+            print(f"    docker compose up -d")
+            print()
+
+        except Exception as e:
+            print(f"\n[ERROR] {e}")
+            return 1
+        finally:
+            self.close()
+
+        return 0
 
 
-def _build_deployment_folders():
-    """Build deployment folders using new separated build scripts"""
-    print("Building deployment folders from separated sources...")
-    
-    # Create base dist directory
-    DIST_BASE_DIR.mkdir(parents=True, exist_ok=True)
-    
-    # Set environment variables for build scripts
-    build_env = os.environ.copy()
-    build_env["DIST_DOCKER_DIR"] = str(DIST_DOCKER_DIR)
-    build_env["DIST_NATIVE_DIR"] = str(DIST_NATIVE_DIR)
-    build_env["BUILD_TIMESTAMP"] = TIMESTAMP
-    
-    # Run Docker build script
-    docker_build_script = ORANGESCRUM_DOCKER_SOURCE / "build.sh"
-    if docker_build_script.exists():
-        print("\nBuilding Docker deployment...")
-        _run_cmd(["bash", str(docker_build_script)], cwd=ORANGESCRUM_DOCKER_SOURCE, env=build_env)
-        print("  ✓ Docker deployment built → dist-docker/")
-    else:
-        print(f"⚠️  Warning: {docker_build_script} not found")
-    
-    # Run Native build script
-    native_build_script = ORANGESCRUM_NATIVE_SOURCE / "build.sh"
-    if native_build_script.exists():
-        print("\nBuilding Native deployment...")
-        _run_cmd(["bash", str(native_build_script)], cwd=ORANGESCRUM_NATIVE_SOURCE, env=build_env)
-        print("  ✓ Native deployment built → dist-native/")
-    else:
-        print(f"⚠️  Warning: {native_build_script} not found")
-    
-    print("\n✓ Deployment folders built successfully")
-    print(f"  Location: {DIST_BASE_DIR}")
-    print(f"    - Docker:  {DIST_DOCKER_DIR.name}")
-    print(f"    - Native:  {DIST_NATIVE_DIR.name}")
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def _env_overrides_from_args(args) -> dict[str, str]:
+    overrides: dict[str, str] = {}
+    for attr, key in [
+        ("app_port", "APP_PORT"), ("app_bind_ip", "APP_BIND_IP"),
+        ("db_host", "DB_HOST"), ("db_port", "DB_PORT"),
+        ("db_username", "DB_USERNAME"), ("db_password", "DB_PASSWORD"),
+        ("db_name", "DB_NAME"),
+    ]:
+        val = getattr(args, attr, None)
+        if val is not None:
+            overrides[key] = str(val)
+    return overrides
 
 
-def check_prerequisites() -> bool:
-    """Run pre-flight checks before building"""
-    print("Pre-flight checks...")
-
-    ok = True
-
-    # Docker daemon
-    try:
-        docker.from_env().ping()
-        print("✓ Docker daemon is running")
-    except Exception as e:
-        print(f"✗ Docker daemon is not accessible: {e}")
-        ok = False
-
-    # OrangeScrum V4 repository
-    if REPO.exists():
-        print(f"✓ OrangeScrum V4 repository found at {REPO}")
-    else:
-        print(f"✗ OrangeScrum V4 repository not found at {REPO}")
-        ok = False
-
-    # Compose files
-    if BUILDER_COMPOSE_FILE.exists():
-        print(f"✓ Builder compose file found at {BUILDER_COMPOSE_FILE}")
-    else:
-        print(f"✗ Builder compose file not found at {BUILDER_COMPOSE_FILE}")
-        ok = False
-
-    # Note: APP_COMPOSE_FILE check removed since it's created during build
-
-    return ok
-
-
-def _ensure_app_env():
-    """Ensure .env file exists for orangescrum-cloud deployment"""
-    global APP_ENV_FILE_DEFAULT, APP_ENV_FILE_EXAMPLE
-    if not APP_ENV_FILE_DEFAULT.exists():
-        print("Creating .env file from example...")
-        if APP_ENV_FILE_EXAMPLE.exists():
-            shutil.copy2(APP_ENV_FILE_EXAMPLE, APP_ENV_FILE_DEFAULT)
-            print(f"✓ Created {APP_ENV_FILE_DEFAULT}")
-            print("⚠ WARNING: Edit .env file to configure database and other settings!")
-        else:
-            print(f"⚠ WARNING: .env.example not found at {APP_ENV_FILE_EXAMPLE}")
-    else:
-        print(f"✓ .env file already exists: {APP_ENV_FILE_DEFAULT}")
-
-
-def _deploy_orangescrum_app(docker_client: docker.DockerClient, env_file: Path, env_overrides: dict[str, str]):
-    """Build and start the OrangeScrum app service"""
-    global APP_COMPOSE_FILE, DIST_DOCKER_DIR
-    print("Deploying OrangeScrum V4 application...")
-    
-    env = os.environ.copy()
-    env["BUILD_DATE"] = str(int(time.time()))
-    env.update(env_overrides)
-    # Enable BuildKit for compose build during deploy
-    env.setdefault("DOCKER_BUILDKIT", "1")
-    
-    # Build and start the orangescrum-app service
-    _run_cmd(
-        [
-            "docker",
-            "compose",
-            "-f",
-            str(APP_COMPOSE_FILE),
-            "--env-file",
-            str(env_file),
-            "up",
-            "-d",
-            "--build",
-        ],
-        cwd=DIST_DOCKER_DIR,
-        env=env,
-    )
-    
-    print("✓ OrangeScrum V4 application deployed (Docker)")
-
-
-
-def main():
-    parser = argparse.ArgumentParser(
+def parse_args():
+    p = argparse.ArgumentParser(
         description="Build FrankenPHP embedded binary for OrangeScrum V4"
     )
-    
-    parser.add_argument(
-        "--check",
-        action="store_true",
-        help="Run pre-flight checks only"
-    )
-    
-    parser.add_argument(
-        "--rebuild-base",
-        action="store_true",
-        help="Force rebuild of base FrankenPHP image (slow)"
-    )
-    parser.add_argument(
-        "--skip-deploy",
-        action="store_true",
-        help="Only build the binary, don't deploy the application"
-    )
-    parser.add_argument(
-        "--skip-archive",
-        action="store_true",
-        help="Skip git archive/extract step"
-    )
-    parser.add_argument(
-        "--skip-base",
-        action="store_true",
-        help="Skip building base FrankenPHP image"
-    )
-    parser.add_argument(
-        "--keep-package",
-        action="store_true",
-        help="Keep the package directory after build (default is to delete)"
-    )
-    parser.add_argument(
-        "--clean",
-        action="store_true",
-        help="Clean up package directory before building"
-    )
-    
-    # Environment and configuration options
-    parser.add_argument(
-        "--env-file",
-        help="Path to orangescrum-cloud env file (defaults to .env or .env.example)"
-    )
-    parser.add_argument(
-        "--app-port",
-        type=int,
-        help="Expose app on this port"
-    )
-    parser.add_argument(
-        "--app-bind-ip",
-        help="Bind app port to this IP (default 0.0.0.0)"
-    )
-    
-    # Database configuration options
-    parser.add_argument("--db-host", help="Database hostname for the app")
-    parser.add_argument("--db-port", type=int, help="Database port for the app")
-    parser.add_argument("--db-username", help="Database username for the app")
-    parser.add_argument("--db-password", help="Database password for the app")
-    parser.add_argument("--db-name", help="Database name for the app")
-    
-    args = parser.parse_args()
-    
-    # Handle --check flag
+
+    # Build control
+    p.add_argument("--check", action="store_true",
+                    help="Pre-flight checks only")
+    p.add_argument("--verify", metavar="DIST_DIR",
+                    help="Verify a built dist package")
+    p.add_argument("--rebuild-base", action="store_true",
+                    help="Force rebuild base image (~30 min)")
+    p.add_argument("--skip-deploy", action="store_true",
+                    help="Build only, don't deploy")
+    p.add_argument("--skip-archive", action="store_true",
+                    help="Skip git archive step")
+    p.add_argument("--skip-base", action="store_true",
+                    help="Skip base image check")
+    p.add_argument("--keep-package", action="store_true",
+                    help="Keep builder/package/ after build")
+    p.add_argument("--clean", action="store_true",
+                    help="Clean package dir before building")
+
+    # Config
+    p.add_argument("--config", metavar="PATH",
+                    help="Path to build.conf (default: ./build.conf)")
+    p.add_argument("--version", dest="version",
+                    help="Override version from VERSION file")
+
+    # Deploy options
+    p.add_argument("--env-file", help="Path to .env file for deployment")
+    p.add_argument("--app-port", type=int, help="App port")
+    p.add_argument("--app-bind-ip", help="App bind IP")
+    p.add_argument("--db-host", help="Database host")
+    p.add_argument("--db-port", type=int, help="Database port")
+    p.add_argument("--db-username", help="Database user")
+    p.add_argument("--db-password", help="Database password")
+    p.add_argument("--db-name", help="Database name")
+
+    return p.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    root = Path(__file__).parent.resolve()
+    config_path = Path(args.config) if args.config else root / "build.conf"
+
+    config = BuildConfig.from_args(args, root=root, config_path=config_path)
+    builder = Builder(config)
+
     if args.check:
-        raise SystemExit(0 if check_prerequisites() else 1)
-    
-    print("=" * 60)
-    print("OrangeScrum V4 FrankenPHP Builder")
-    print("=" * 60)
-    print()
-    
-    # Initialize timestamped dist paths
-    global TIMESTAMP, DIST_BASE_DIR, DIST_DOCKER_DIR, DIST_NATIVE_DIR
-    TIMESTAMP = time.strftime("%Y%m%d_%H%M%S")
-    DIST_BASE_DIR = ROOT / "dist" / TIMESTAMP
-    DIST_DOCKER_DIR = DIST_BASE_DIR / "dist-docker"
-    DIST_NATIVE_DIR = DIST_BASE_DIR / "dist-native"
-    
-    # Run pre-flight checks
-    if not check_prerequisites():
-        print("\nPre-flight checks failed. Please fix the issues above.")
-        return 1
-    
-    print()
-    
-    # Verify source directory exists
-    if not REPO.exists():
-        print(f"ERROR: OrangeScrum V4 directory not found: {REPO}")
-        print("Please ensure ../apps/orangescrum-v4 exists with application code")
-        return 1
-    
-    docker_client = docker.from_env()
-    
-    # Initialize deployment file paths after dist directories are set
-    global APP_COMPOSE_FILE, APP_ENV_FILE_DEFAULT, APP_ENV_FILE_EXAMPLE
-    APP_COMPOSE_FILE = DIST_DOCKER_DIR / "docker-compose.yaml"
-    APP_ENV_FILE_DEFAULT = DIST_DOCKER_DIR / ".env"
-    APP_ENV_FILE_EXAMPLE = DIST_DOCKER_DIR / ".env.example"
-    
-    # Resolve environment file
-    env_file = _resolve_env_file(args.env_file)
-    
-    # Build environment overrides from command-line args
-    env_overrides: dict[str, str] = {}
-    if args.app_port is not None:
-        env_overrides["APP_PORT"] = str(args.app_port)
-    if args.app_bind_ip:
-        env_overrides["APP_BIND_IP"] = args.app_bind_ip
-    
-    if args.db_host:
-        env_overrides["DB_HOST"] = args.db_host
-    if args.db_port is not None:
-        env_overrides["DB_PORT"] = str(args.db_port)
-    if args.db_username:
-        env_overrides["DB_USERNAME"] = args.db_username
-    if args.db_password:
-        env_overrides["DB_PASSWORD"] = args.db_password
-    if args.db_name:
-        env_overrides["DB_NAME"] = args.db_name
-    
-    try:
-        # Step 1: Clean package directory if requested
-        if args.clean and PACKAGE.exists():
-            print("Cleaning package directory...")
-            _clean_dir(PACKAGE)
-            print("✓ Package directory cleaned\n")
-        
-        # Step 2: Prepare package directory (unless skipping archive)
-        if not args.skip_archive:
-            print("Step 1: Preparing package directory...")
-            _clean_dir(PACKAGE)
-            
-            # Step 3: Archive the OrangeScrum V4 app
-            print("\nStep 2: Archiving OrangeScrum V4 application...")
-            archive_path = _archive_repo()
-            
-            # Step 4: Extract to package directory
-            print("\nStep 3: Extracting to package directory...")
-            _extract_archive(archive_path, PACKAGE)
-            
-            # Clean up archive
-            archive_path.unlink(missing_ok=True)
-            
-            # Step 5: Copy config overrides
-            print("\nStep 4: Copying configuration overrides...")
-            _copy_config_overrides()
-        
-        # Step 6: Ensure base image exists (unless skipping)
-        if not args.skip_base:
-            print("\nStep 5: Ensuring FrankenPHP base image...")
-            _ensure_base_image(docker_client, args.rebuild_base)
-        
-        # Step 7: Build app embedding
-        print("\nStep 6: Building FrankenPHP embedded application...")
-        _build_app_embed()
-        
-        # Step 8: Start builder container
-        print("\nStep 7: Starting builder container...")
-        _start_app_builder_container()
-        
-        # Step 9: Copy binary
-        print("\nStep 8: Extracting FrankenPHP binary...")
-        _copy_frankenphp_binary(docker_client)
-        
-        # Step 9.5: Build deployment folders
-        print("\nStep 9: Building deployment folders...")
-        _build_deployment_folders()
-        
-        # Step 10: Stop builder
-        print("\nStep 10: Cleaning up builder containers...")
-        _stop_builder_stack()
-        
-        # Clean up package directory unless --keep-package
-        if not args.keep_package and PACKAGE.exists():
-            print(f"\nCleaning up package directory {PACKAGE}...")
-            shutil.rmtree(PACKAGE)
-        
-        # Step 11: Deploy if not skipped
-        if not args.skip_deploy:
-            print("\nStep 11: Deploying OrangeScrum V4 application (Docker)...")
-            _ensure_app_env()
-            _deploy_orangescrum_app(docker_client, env_file, env_overrides)
-            
-            # Wait for health check
-            _wait_for_app_healthy(docker_client)
-        
-        print("\n" + "=" * 70)
-        print("Build Complete!")
-        print("=" * 70)
-        print(f"\n✓ FrankenPHP binary: {COMMON_BINARY}")
-        print(f"\n✓ Deployment packages: {DIST_BASE_DIR}")
-        print(f"  - Docker:  {DIST_DOCKER_DIR.name}/")
-        print(f"  - Native:  {DIST_NATIVE_DIR.name}/")
-        print(f"\nTo deploy, copy the entire folder to production:")
-        print(f"  scp -r {DIST_BASE_DIR} user@server:/opt/orangescrum/")
-        print(f"  cd /opt/orangescrum/{TIMESTAMP}/dist-docker  # or dist-native")
-        print(f"  cp .env.example .env && nano .env")
-        print(f"  docker compose up -d  # or ./run.sh")
-        
-        if not args.skip_deploy:
-            app_port = env_overrides.get("APP_PORT", "8080")
-            print(f"\nOrangeScrum V4 is now running (Docker deployment)!")
-            print(f"Access at: http://localhost:{app_port}")
-            print("\nUseful commands:")
-            print(f"  cd {DIST_DOCKER_DIR} && docker compose ps      # Check status")
-            print(f"  cd {DIST_DOCKER_DIR} && docker compose logs -f # View logs")
-        else:
-            print("\nTo deploy the application:")
-            print("\nDocker deployment:")
-            print(f"  cd {DIST_DOCKER_DIR}")
-            print("  cp .env.example .env")
-            print("  nano .env  # Edit configuration")
-            print("  docker-compose -f docker-compose.services.yml up -d  # Infrastructure (optional)")
-            print("  docker compose up -d  # Start application")
-            print("\nNative deployment:")
-            print(f"  cd {DIST_NATIVE_DIR}")
-            print("  cp .env.example .env")
-            print("  nano .env  # Edit configuration")
-            print("  ./helpers/validate-env.sh  # Validate config")
-            print("  ./run.sh  # Start application")
-            print(f"\nOr copy entire build to production:")
-            print(f"  scp -r {DIST_BASE_DIR} user@server:/opt/orangescrum/")
-        
-        print()
-        
-    except Exception as e:
-        print(f"\nERROR: {e}")
-        return 1
-    finally:
-        docker_client.close()
-    
-    return 0
+        return 0 if builder.check() else 1
+
+    if args.verify:
+        return 0 if builder.verify_dist(Path(args.verify).resolve()) else 1
+
+    return builder.run(args)
 
 
 if __name__ == "__main__":
-    exit(main())
+    raise SystemExit(main())

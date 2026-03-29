@@ -5,8 +5,12 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# Load version from single source of truth
+BUILDER_ROOT="${BUILDER_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+source "$BUILDER_ROOT/lib/config.sh" 2>/dev/null || true
+load_version 2>/dev/null || true
+
 PACKAGE_NAME="orangescrum-frankenphp"
-VERSION="${VERSION:-v26.1.1}"
 PACKAGE_DIR="${PACKAGE_NAME}-${VERSION}"
 OUTPUT_FILE="${PACKAGE_NAME}-${VERSION}.tar.gz"
 BINARY="./bin/orangescrum"

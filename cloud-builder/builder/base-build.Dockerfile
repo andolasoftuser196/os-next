@@ -16,7 +16,8 @@
 # Rebuilding: Only rebuild when upgrading FrankenPHP or changing PHP version
 # ==========================================
 
-FROM dunglas/frankenphp:static-builder-musl-1.11.1 AS base-builder
+ARG FRANKENPHP_VERSION=1.11.1
+FROM dunglas/frankenphp:static-builder-musl-${FRANKENPHP_VERSION} AS base-builder
 
 WORKDIR /go/src/app
 

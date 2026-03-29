@@ -17,6 +17,9 @@ FROM alpine:latest
 # Install Runtime Dependencies
 # ==========================================
 # Install minimal tools for FrankenPHP runtime + cron support
+ARG UID=1000
+ARG GID=1000
+
 RUN apk add --no-cache \
     bash \
     wget \
@@ -24,8 +27,8 @@ RUN apk add --no-cache \
     dcron \
     libcap && \
     # Create non-root user for security
-    addgroup -g 1000 orangescrum && \
-    adduser -D -u 1000 -G orangescrum orangescrum
+    addgroup -g ${GID} orangescrum && \
+    adduser -D -u ${UID} -G orangescrum orangescrum
 
 WORKDIR /orangescrum-app
 
@@ -44,8 +47,9 @@ COPY ./config /orangescrum-app/config
 RUN chown -R orangescrum:orangescrum /orangescrum-app/config
 
 # ==========================================
-# Copy Entrypoint and Cron Setup Script
+# Copy Shared Library and Entrypoint
 # ==========================================
+COPY ./lib /orangescrum-app/lib
 COPY ./entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 

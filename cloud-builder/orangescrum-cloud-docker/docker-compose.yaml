@@ -6,6 +6,7 @@ services:
       dockerfile: Dockerfile
       args:
         BUILD_DATE: "${BUILD_DATE:-$(date +%s)}"
+    image: orangescrum-cloud-app:runtime
     container_name: ${COMPOSE_PROJECT_NAME:-orangescrum-cloud-base}-orangescrum-app-1
     restart: unless-stopped
     networks:
@@ -17,7 +18,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost/home/healthcheck || exit 1"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost/healthz || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -36,13 +37,9 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # CakePHP Queue Worker
+  # CakePHP Queue Worker — reuses the same image as orangescrum-app (no rebuild)
   queue-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        BUILD_DATE: "${BUILD_DATE:-$(date +%s)}"
+    image: orangescrum-cloud-app:runtime
     container_name: ${COMPOSE_PROJECT_NAME:-orangescrum-cloud-base}-queue-worker-1
     restart: unless-stopped
     networks:

@@ -1,0 +1,6 @@
+# Exclude files not needed during Docker image build
+# The package/ directory is explicitly COPY'd by app-embed.Dockerfile,
+# but everything else in builder/ shouldn't bloat the build context.
+*.md
+*.commented
+docker-compose.yaml
