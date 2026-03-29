@@ -164,6 +164,18 @@ COPY --from=composer-helper /app/ ./
 COPY ./php.ini ./php.ini
 
 # ==========================================
+# Set Fixed Extraction Path (FrankenPHP 1.12.1+)
+# ==========================================
+# Patch embed.go to extract to a fixed path instead of /tmp/frankenphp_<hash>.
+# This eliminates polling loops, sentinel files, and cron path discovery.
+# The path is configurable via build arg (default: /app).
+ARG EMBEDDED_APP_PATH=/app
+RUN sed -i "s|filepath.Join(os.TempDir(), \"frankenphp_\"+string(embeddedAppChecksum))|\"${EMBEDDED_APP_PATH}\"|" /go/src/app/embed.go && \
+    grep -q "\"${EMBEDDED_APP_PATH}\"" /go/src/app/embed.go && \
+    echo "Patched EmbeddedAppPath to: ${EMBEDDED_APP_PATH}" || \
+    { echo "ERROR: Failed to patch embed.go"; exit 1; }
+
+# ==========================================
 # Build Static Binary with Embedded App
 # ==========================================
 WORKDIR /go/src/app/

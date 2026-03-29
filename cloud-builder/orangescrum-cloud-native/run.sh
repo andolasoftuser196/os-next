@@ -30,14 +30,27 @@ if [ ! -f "$BINARY" ]; then
     exit 1
 fi
 
-# Pre-flight: psql availability
+# Pre-flight checks
 echo ""
 echo "Pre-flight checks..."
+
+# Check psql
 if command -v psql >/dev/null 2>&1; then
     echo "  [OK] psql: $(psql --version 2>/dev/null | head -1)"
 else
     echo "  [WARN] psql not found — seeders will not run automatically"
     echo "  Install: apt install postgresql-client"
+fi
+
+# Check app extraction directory
+APP_PATH="${FRANKENPHP_APP_PATH:-/app}"
+if [ -d "$APP_PATH" ] && [ -w "$APP_PATH" ]; then
+    echo "  [OK] App path: $APP_PATH (writable)"
+elif mkdir -p "$APP_PATH" 2>/dev/null; then
+    echo "  [OK] App path: $APP_PATH (created)"
+else
+    echo "  [WARN] Cannot write to $APP_PATH — will fall back to /tmp"
+    echo "  Fix: sudo mkdir -p $APP_PATH && sudo chown \$USER:\$USER $APP_PATH"
 fi
 
 # Load .env

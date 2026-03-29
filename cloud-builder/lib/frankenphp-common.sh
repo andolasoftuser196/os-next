@@ -121,39 +121,68 @@ validate_production_env() {
 # Returns: 0 on success, 1 on failure
 # ---------------------------------------------------------------------------
 extract_frankenphp_app() {
-    local max_wait="${FRANKENPHP_EXTRACT_TIMEOUT:-60}"
+    # Determine extraction path:
+    # - FRANKENPHP_APP_PATH env var (explicit override)
+    # - /app (Docker — patched binary uses this by default)
+    # - /tmp fallback (unpatched binary uses /tmp/frankenphp_<hash>)
+    local app_path="${FRANKENPHP_APP_PATH:-/app}"
 
-    # Clean old extraction directories
-    find /tmp -maxdepth 1 -name "frankenphp_*" -type d -exec rm -rf {} + 2>/dev/null || true
+    # Ensure extraction directory exists and is writable
+    if [ ! -d "$app_path" ]; then
+        mkdir -p "$app_path" 2>/dev/null || {
+            # /app not writable (native runner without sudo) — fall back to /tmp
+            echo "  [INFO] Cannot create $app_path, falling back to /tmp"
+            app_path=""
+        }
+    fi
 
     # Start the binary in background
     echo "  Starting FrankenPHP..."
     "$@" &
     FRANKENPHP_PID=$!
 
-    # Poll for extraction directory + verify key files exist
-    echo "  Waiting for app extraction (timeout: ${max_wait}s)..."
-    local elapsed=0
-    EXTRACTED_APP=""
-    while [ "$elapsed" -lt "$max_wait" ]; do
-        EXTRACTED_APP=$(find /tmp -maxdepth 1 -name "frankenphp_*" -type d 2>/dev/null | head -1)
-        if [ -n "$EXTRACTED_APP" ] && \
-           [ -f "$EXTRACTED_APP/webroot/index.php" ] && \
-           [ -f "$EXTRACTED_APP/vendor/autoload.php" ]; then
-            break
-        fi
-        sleep 1
-        elapsed=$((elapsed + 1))
-    done
+    # Wait for extraction to complete
+    if [ -n "$app_path" ] && [ -d "$app_path" ]; then
+        # Fixed path mode — wait for key files to appear (extraction is fast)
+        echo "  Waiting for app extraction to $app_path..."
+        local max_wait="${FRANKENPHP_EXTRACT_TIMEOUT:-30}"
+        local elapsed=0
+        while [ "$elapsed" -lt "$max_wait" ]; do
+            if [ -f "$app_path/webroot/index.php" ] && \
+               [ -f "$app_path/vendor/autoload.php" ]; then
+                break
+            fi
+            sleep 1
+            elapsed=$((elapsed + 1))
+        done
+        EXTRACTED_APP="$app_path"
+    else
+        # Polling mode — find the /tmp/frankenphp_* directory
+        echo "  Waiting for app extraction (polling /tmp)..."
+        local max_wait="${FRANKENPHP_EXTRACT_TIMEOUT:-60}"
+        local elapsed=0
+        EXTRACTED_APP=""
+        while [ "$elapsed" -lt "$max_wait" ]; do
+            EXTRACTED_APP=$(find /tmp -maxdepth 1 -name "frankenphp_*" -type d 2>/dev/null | head -1)
+            if [ -n "$EXTRACTED_APP" ] && \
+               [ -f "$EXTRACTED_APP/webroot/index.php" ] && \
+               [ -f "$EXTRACTED_APP/vendor/autoload.php" ]; then
+                break
+            fi
+            sleep 1
+            elapsed=$((elapsed + 1))
+        done
+    fi
 
-    if [ -z "$EXTRACTED_APP" ]; then
-        echo "  [ERROR] Extraction timed out after ${max_wait}s"
+    # Verify extraction succeeded
+    if [ -z "$EXTRACTED_APP" ] || [ ! -f "$EXTRACTED_APP/webroot/index.php" ]; then
+        echo "  [ERROR] Extraction failed or timed out"
         kill "$FRANKENPHP_PID" 2>/dev/null || true
         return 1
     fi
     echo "  [OK] Extracted to: $EXTRACTED_APP"
 
-    # Handle the expected crash-and-restart (FrankenPHP may crash after extraction)
+    # Check if FrankenPHP is still running (may crash after extraction)
     sleep 2
     if ! kill -0 "$FRANKENPHP_PID" 2>/dev/null; then
         echo "  [INFO] FrankenPHP stopped after extraction (restarting)..."
@@ -166,7 +195,7 @@ extract_frankenphp_app() {
         fi
     fi
 
-    # Write sentinel file so cron and helpers can find the extracted path
+    # Write sentinel file for cron and helpers
     echo "$EXTRACTED_APP" > /tmp/.frankenphp_app_path
 
     # Support DB password from Docker secrets file
