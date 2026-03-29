@@ -1,6 +1,6 @@
 # OrangeScrum V4 FrankenPHP Cloud Builder
 
-Single-command build system that produces a self-contained static binary (~340 MB) containing FrankenPHP 1.11.1 + PHP 8.3 + Caddy + the entire OrangeScrum V4 application.
+Single-command build system that produces a self-contained static binary (~340 MB) containing FrankenPHP 1.12.1 + PHP 8.3 + Caddy + the entire OrangeScrum V4 application.
 
 ```bash
 python3 build.py --skip-deploy    # Build only (~3 min after first build)

@@ -275,27 +275,25 @@ Both Docker and Native follow the same sequence (via `lib/frankenphp-common.sh`)
    └─ Writes /tmp/php-overrides/99-overrides.ini from PHP_* env vars
 
 3. extract_frankenphp_app()
-   ├─ Cleans old /tmp/frankenphp_* dirs
+   ├─ Docker: extracts to /app (fixed path, patched into binary)
+   ├─ Native: extracts to /app if writable, otherwise /tmp/frankenphp_<hash>
    ├─ Starts binary in background
-   ├─ Polls for extraction (timeout: 60s, configurable via FRANKENPHP_EXTRACT_TIMEOUT)
-   ├─ Verifies: webroot/index.php + vendor/autoload.php exist
-   ├─ Handles crash-restart cycle (expected FrankenPHP behavior)
+   ├─ Waits for webroot/index.php + vendor/autoload.php
+   ├─ Handles crash-restart cycle if needed
    └─ Writes sentinel: /tmp/.frankenphp_app_path
 
 4. copy_config_files()
    └─ Globs config/*.example.php → *.php (+ plugins)
 
-5. run_migrations()
-   ├─ bin/cake migrations migrate
-   └─ bin/cake migrations migrate -p <plugin> (for each plugin)
+5. init_database()
+   └─ bin/cake init_database --seed -y
+      ├─ Runs migrations (main + plugins)
+      ├─ Converts identity columns
+      ├─ Auto-detects if seeding needed
+      ├─ Runs seeders
+      └─ Resets sequences
 
-6. run_seeders()    (auto-detect by default)
-   ├─ SELECT COUNT(*) FROM actions → if 0, seed
-   ├─ Convert identity columns (pg_config_1.sql)
-   ├─ bin/cake migrations seed
-   └─ Reset sequences (pg_config_2.sql)
-
-7. Server mode: wait for FrankenPHP
+6. Server mode: wait for FrankenPHP
    Queue mode: kill server, exec queue worker CLI
 ```
 

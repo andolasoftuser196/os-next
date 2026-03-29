@@ -160,15 +160,10 @@ def _copy_config_overrides():
 
 ```bash
 # entrypoint.sh or run.sh
-# After FrankenPHP extracts app to /tmp/frankenphp_*
-
-cp $EXTRACTED_APP/config/app_local.example.php \
-   $EXTRACTED_APP/config/app_local.php
-
-cp $EXTRACTED_APP/config/cache_redis.example.php \
-   $EXTRACTED_APP/config/cache_redis.php
-
-# ... repeat for all 7 config files
+# FrankenPHP extracts to /app (Docker) or /tmp/frankenphp_* (native fallback)
+# Config activation is automatic via glob in copy_config_files():
+#   config/*.example.php → config/*.php
+#   plugins/*/config/*.example.php → plugins/*/config/*.php
 ```
 
 **Key Point:** `.example.php` files are copied to `.php` files at runtime. The `.php` files are what CakePHP actually loads.
@@ -258,7 +253,7 @@ return [
 
 ```
 1. FrankenPHP Binary Starts
-   └─> Extracts embedded app to /tmp/frankenphp_XXXXX/
+   └─> Extracts embedded app to /app (Docker) or /tmp/frankenphp_XXXXX/ (native)
 
 2. Entrypoint/Script Copies Configs
    └─> cp *.example.php → *.php
@@ -389,11 +384,11 @@ docker exec orangescrum-cloud-orangescrum-app-1 env | grep DB_
 ### Verify config file exists
 
 ```bash
-# Inside container
-docker exec orangescrum-cloud-orangescrum-app-1 ls -la /tmp/frankenphp_*/config/
+# Inside container (fixed path)
+docker exec orangescrum-cloud-orangescrum-app-1 ls -la /app/config/
 
 # Native mode
-ls -la /tmp/frankenphp_*/config/
+ls -la /app/config/  # or /tmp/frankenphp_*/config/ if /app not writable
 ```
 
 ### Test database connection

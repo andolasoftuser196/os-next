@@ -98,17 +98,12 @@ healthcheck:
 - Check database connectivity in health check
 - Check Redis connectivity in health check
 
-### 7. Cron Job Uses Wildcard Path Matching
-**File:** `config/cron/recurring_task_cron_franken`  
-**Issue:** `cd /tmp/frankenphp_*` - wildcard can match multiple directories  
+### 7. Cron Job Path Resolution
+**File:** `config/cron/recurring_task_cron_franken`
+**Status:** FIXED — Uses sentinel file written by extract_frankenphp_app()
 ```bash
-*/30 * * * * cd /tmp/frankenphp_* && /orangescrum-app/osv4-prod php-cli bin/cake.php recurring_task
-```
-**Risk:** Cron may fail or run in wrong directory  
-**Fix Required:**
-```bash
-# Store extracted path in a fixed location
-*/30 * * * * EXTRACTED_APP=$(find /tmp -maxdepth 1 -name "frankenphp_*" -type d | head -1) && cd "$EXTRACTED_APP" && /orangescrum-app/osv4-prod php-cli bin/cake.php recurring_task >> /data/logs/cron.log 2>&1
+# Docker: app extracts to /app (fixed path)
+*/30 * * * * [ -f /tmp/.frankenphp_app_path ] && EXTRACTED_APP=$(cat /tmp/.frankenphp_app_path) && [ -d "$EXTRACTED_APP" ] && cd "$EXTRACTED_APP" && /orangescrum-app/osv4-prod php-cli bin/cake.php recurring_task >> /data/logs/cron.log 2>&1
 ```
 
 ---

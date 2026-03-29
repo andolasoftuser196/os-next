@@ -206,12 +206,12 @@ aws s3 ls s3://orangescrum-production-files/ --region us-east-1
 # As orangescrum user
 cd /opt/application
 
-# Run first deployment (includes migrations)
+# Run first deployment (includes migrations + seeders)
 # This will:
-# 1. Extract embedded app to /tmp/frankenphp_*
-# 2. Run database migrations
+# 1. Extract embedded app to /app (create with: sudo mkdir -p /app && sudo chown $USER:$USER /app)
+# 2. Run database initialization (migrations + seeders via bin/cake init_database)
 # 3. Start the server on port 8080
-RUN_MIGRATIONS=true DAEMON=false ./run.sh
+DAEMON=false ./run.sh
 ```
 
 **Watch for:**

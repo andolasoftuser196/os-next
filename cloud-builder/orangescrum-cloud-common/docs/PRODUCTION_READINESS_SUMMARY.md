@@ -43,7 +43,7 @@
 
 4. **Cron Path Fix** - Fixed wildcard issue in `recurring_task_cron_franken`
    - Old: `cd /tmp/frankenphp_*` (unsafe wildcard)
-   - New: Dynamic path resolution with validation
+   - New: Fixed `/app` path in Docker; sentinel file fallback for native
 
 ### Documentation Added
 
@@ -284,7 +284,7 @@ The architecture has excellent foundations:
 
 3. `config/cron/recurring_task_cron_franken` - Fixed path wildcard
    - Old: `cd /tmp/frankenphp_*` (unsafe)
-   - New: Dynamic resolution with validation
+   - New: Fixed `/app` path (Docker); sentinel file fallback (native)
 
 ---
 

@@ -184,7 +184,7 @@ curl http://localhost:8080/home/healthcheck
 **Application logs:**
 ```bash
 find /tmp -maxdepth 1 -name "frankenphp_*" -type d
-tail -f /tmp/frankenphp_*/logs/error.log
+tail -f /app/logs/error.log  # Docker: /app, Native: /app or /tmp/frankenphp_*/
 ```
 
 **System logs (when running as systemd service):**

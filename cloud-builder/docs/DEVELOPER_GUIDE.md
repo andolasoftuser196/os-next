@@ -165,7 +165,7 @@ All build-time settings. Never hardcoded in scripts.
 
 ```ini
 [build]
-frankenphp_version = 1.11.1
+frankenphp_version = 1.12.1
 php_version = 8.3
 base_image_name = orangescrum-cloud-base
 app_image_name = orangescrum-cloud-app
@@ -210,7 +210,7 @@ FRANKENPHP_VERSION=1.12.0 python3 build.py --skip-deploy
 
 ## Shared Shell Library
 
-`lib/frankenphp-common.sh` provides 8 functions used by both Docker and Native deployments:
+`lib/frankenphp-common.sh` provides 7 functions used by both Docker and Native deployments:
 
 | Function | Purpose |
 |----------|---------|
@@ -219,8 +219,7 @@ FRANKENPHP_VERSION=1.12.0 python3 build.py --skip-deploy
 | `validate_production_env` | Check security-critical env vars (exits on fatal) |
 | `extract_frankenphp_app CMD...` | Start binary, wait for extraction, verify, write sentinel |
 | `copy_config_files APP_DIR` | Glob-based .example.php → .php activation |
-| `run_migrations BINARY APP_DIR` | CakePHP migrations + plugin migrations |
-| `run_seeders BINARY APP_DIR` | Auto-detect + seed + reset sequences |
+| `init_database BINARY APP_DIR` | Run migrations + seeders via CakePHP `init_database` command |
 | `apply_php_overrides` | Write runtime PHP INI from env vars |
 
 ### Adding a New Function
@@ -382,7 +381,7 @@ dist/{timestamp}/
   "git_sha": "c1d5c17c",
   "build_timestamp": "2026-03-29T14:30:00Z",
   "builder_host": "dev-machine",
-  "frankenphp_version": "1.11.1",
+  "frankenphp_version": "1.12.1",
   "php_version": "8.3",
   "binary_name": "osv4-prod",
   "binary_sha256": "a1b2c3d4...",
