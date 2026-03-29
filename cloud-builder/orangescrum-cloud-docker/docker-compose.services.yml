@@ -2,7 +2,7 @@ name: orangescrum-infra
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16.10
     container_name: os-postgres
     restart: unless-stopped
     environment:
