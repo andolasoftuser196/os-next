@@ -26,11 +26,8 @@ extract_frankenphp_app "$@" || exit 1
 # 4. Activate config templates
 copy_config_files "$EXTRACTED_APP"
 
-# 5. Run database migrations
-run_migrations "/orangescrum-app/osv4-prod" "$EXTRACTED_APP"
-
-# 6. Run seeders (auto-detect by default)
-run_seeders "/orangescrum-app/osv4-prod" "$EXTRACTED_APP"
+# 5. Initialize database (migrations + seeders via CakePHP command)
+init_database "/orangescrum-app/osv4-prod" "$EXTRACTED_APP"
 
 echo "[OK] Application is ready!"
 

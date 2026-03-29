@@ -53,7 +53,8 @@ resolve_binary() {
     )
     for bin in "${candidates[@]}"; do
         if [ -f "$bin" ]; then
-            echo "$bin"
+            # Return absolute path so it works after cd to extracted app dir
+            echo "$(cd "$(dirname "$bin")" && pwd)/$(basename "$bin")"
             return 0
         fi
     done
@@ -71,27 +72,27 @@ validate_production_env() {
     echo "Validating production environment..."
 
     # Fatal: insecure defaults
-    if [ "$SECURITY_SALT" = "__CHANGE_THIS_TO_RANDOM_STRING__" ]; then
+    if [ "${SECURITY_SALT:-}" = "__CHANGE_THIS_TO_RANDOM_STRING__" ]; then
         echo "  [FATAL] SECURITY_SALT is still the placeholder value"
         echo "    Fix: openssl rand -base64 32"
         errors=$((errors + 1))
     fi
-    if [ "$DB_PASSWORD" = "changeme_in_production" ]; then
+    if [ "${DB_PASSWORD:-}" = "changeme_in_production" ]; then
         echo "  [FATAL] DB_PASSWORD is still the placeholder value"
         echo "    Fix: openssl rand -base64 24"
         errors=$((errors + 1))
     fi
-    if [ "$V4_ROUTING_ENABLED" = "true" ] && [ "$V2_ROUTING_API_KEY" = "your-secure-api-key-here-change-this" ]; then
+    if [ "${V4_ROUTING_ENABLED:-}" = "true" ] && [ "${V2_ROUTING_API_KEY:-}" = "your-secure-api-key-here-change-this" ]; then
         echo "  [FATAL] V2_ROUTING_API_KEY is still the placeholder value"
         errors=$((errors + 1))
     fi
 
     # Fatal: required vars missing
-    if [ -z "$SECURITY_SALT" ]; then
+    if [ -z "${SECURITY_SALT:-}" ]; then
         echo "  [FATAL] SECURITY_SALT is not set"
         errors=$((errors + 1))
     fi
-    if [ -z "$DB_PASSWORD" ]; then
+    if [ -z "${DB_PASSWORD:-}" ]; then
         echo "  [FATAL] DB_PASSWORD is not set"
         errors=$((errors + 1))
     fi
@@ -103,7 +104,7 @@ validate_production_env() {
         echo "  [WARN] SECURITY_SALT shorter than 32 chars (current: ${#SECURITY_SALT})"
     [ "${#DB_PASSWORD}" -lt 16 ] 2>/dev/null && \
         echo "  [WARN] DB_PASSWORD shorter than 16 chars (current: ${#DB_PASSWORD})"
-    [ "$DEBUG" = "true" ] && \
+    [ "${DEBUG:-}" = "true" ] && \
         echo "  [WARN] DEBUG=true — should be false in production"
 
     echo "  [OK] Environment validation passed"
@@ -169,7 +170,7 @@ extract_frankenphp_app() {
     echo "$EXTRACTED_APP" > /tmp/.frankenphp_app_path
 
     # Support DB password from Docker secrets file
-    if [ -n "$DB_PASSWORD_FILE" ] && [ -f "$DB_PASSWORD_FILE" ]; then
+    if [ -n "${DB_PASSWORD_FILE:-}" ] && [ -f "${DB_PASSWORD_FILE:-}" ]; then
         DB_PASSWORD="$(cat "$DB_PASSWORD_FILE")"
         export DB_PASSWORD
     fi
@@ -213,101 +214,42 @@ copy_config_files() {
 }
 
 # ---------------------------------------------------------------------------
-# run_migrations BINARY APP_DIR
+# init_database BINARY APP_DIR
+# Uses the CakePHP InitDatabaseCommand which handles:
+#   - Migrations (main + plugins)
+#   - Identity column conversion
+#   - Seeders (with auto-detection)
+#   - Sequence reset
+# This replaces the old shell-based run_migrations + run_seeders.
 # ---------------------------------------------------------------------------
-run_migrations() {
+init_database() {
     local binary="$1"
     local app_dir="$2"
 
-    [ -n "$DB_HOST" ] || { echo "  [SKIP] Migrations (DB_HOST not set)"; return 0; }
-    [ -z "$SKIP_MIGRATIONS" ] || { echo "  [SKIP] Migrations (SKIP_MIGRATIONS set)"; return 0; }
+    [ -n "${DB_HOST:-}" ] || { echo "  [SKIP] Database init (DB_HOST not set)"; return 0; }
     [ -d "$app_dir" ] || return 0
 
-    echo "Running database migrations..."
     cd "$app_dir"
 
-    # Main migrations
-    "$binary" php-cli bin/cake.php migrations migrate 2>&1 || \
-        echo "  [WARN] Main migrations returned non-zero exit"
-    echo "  [OK] Main migrations done"
+    # Build command flags
+    local flags="-y"
 
-    # Plugin migrations
-    if [ -d "$app_dir/plugins" ]; then
-        for pdir in "$app_dir"/plugins/*/; do
-            [ -d "$pdir" ] || continue
-            local pname
-            pname=$(basename "$pdir")
-            "$binary" php-cli bin/cake.php migrations migrate -p "$pname" 2>&1 || \
-                echo "  [WARN] Plugin $pname migrations returned non-zero exit"
-        done
-        echo "  [OK] Plugin migrations done"
+    if [ "${SKIP_MIGRATIONS:-}" = "true" ] || [ "${RUN_MIGRATIONS:-}" = "false" ]; then
+        flags="$flags --skip-migrations"
     fi
+
+    if [ "${SKIP_SEEDERS:-}" = "true" ] || [ "${RUN_SEEDERS:-}" = "false" ]; then
+        flags="$flags --skip-seeders"
+    elif [ "${RUN_SEEDERS:-auto}" != "false" ]; then
+        flags="$flags --seed"
+    fi
+
+    echo "Running database initialization..."
+    # shellcheck disable=SC2086
+    "$binary" php-cli bin/cake.php init_database $flags 2>&1 || \
+        echo "  [WARN] init_database returned non-zero exit"
 
     cd /
-}
-
-# ---------------------------------------------------------------------------
-# run_seeders BINARY APP_DIR
-# Auto-detects whether seeding is needed by checking the actions table.
-# ---------------------------------------------------------------------------
-run_seeders() {
-    local binary="$1"
-    local app_dir="$2"
-
-    [ -n "$DB_HOST" ] || return 0
-    [ -d "$app_dir" ] || return 0
-
-    # Determine if we should seed
-    local should_seed="false"
-    if [ "$RUN_SEEDERS" = "true" ]; then
-        should_seed="true"
-    elif [ "$RUN_SEEDERS" = "false" ] || [ "$SKIP_SEEDERS" = "true" ]; then
-        should_seed="false"
-    elif command -v psql >/dev/null 2>&1; then
-        # Auto-detect: check if actions table is empty
-        local count
-        count=$(PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "${DB_PORT:-5432}" \
-                -U "$DB_USERNAME" -d "$DB_NAME" -t -c "SELECT COUNT(*) FROM actions;" 2>/dev/null | tr -d ' ')
-        if [ -z "$count" ] || [ "$count" = "0" ]; then
-            echo "  [INFO] Database appears empty, will seed"
-            should_seed="true"
-        else
-            echo "  [INFO] Database already seeded ($count actions)"
-        fi
-    fi
-
-    [ "$should_seed" = "true" ] || return 0
-
-    echo "Running database seeders..."
-    cd "$app_dir"
-
-    # Step 1: Convert identity columns (allows explicit IDs during seeding)
-    if [ -f "$app_dir/config/schema/pg_config_1.sql" ] && command -v psql >/dev/null 2>&1; then
-        echo "  Converting identity columns..."
-        PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "${DB_PORT:-5432}" \
-            -U "$DB_USERNAME" -d "$DB_NAME" -f "$app_dir/config/schema/pg_config_1.sql" 2>&1 | grep -v "NOTICE:" || true
-    fi
-
-    # Step 2: Run seeders
-    echo "  Running seeders..."
-    local seed_output
-    seed_output=$("$binary" php-cli bin/cake.php migrations seed 2>&1) || true
-    echo "$seed_output"
-
-    # Duplicate key errors are expected (data already exists)
-    if echo "$seed_output" | grep -q "duplicate key\|23505"; then
-        echo "  [OK] Seeders completed (existing data preserved)"
-    fi
-
-    # Step 3: Reset sequences
-    if [ -f "$app_dir/config/schema/pg_config_2.sql" ] && command -v psql >/dev/null 2>&1; then
-        echo "  Resetting sequences..."
-        PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "${DB_PORT:-5432}" \
-            -U "$DB_USERNAME" -d "$DB_NAME" -f "$app_dir/config/schema/pg_config_2.sql" 2>&1 | grep -v "NOTICE:" || true
-    fi
-
-    cd /
-    echo "  [OK] Seeding complete"
 }
 
 # ---------------------------------------------------------------------------
@@ -316,10 +258,10 @@ run_seeders() {
 # ---------------------------------------------------------------------------
 apply_php_overrides() {
     local any_override=""
-    [ -n "$PHP_MEMORY_LIMIT" ] && any_override="1"
-    [ -n "$PHP_POST_MAX_SIZE" ] && any_override="1"
-    [ -n "$PHP_UPLOAD_MAX_FILESIZE" ] && any_override="1"
-    [ -n "$PHP_MAX_EXECUTION_TIME" ] && any_override="1"
+    [ -n "${PHP_MEMORY_LIMIT:-}" ] && any_override="1"
+    [ -n "${PHP_POST_MAX_SIZE:-}" ] && any_override="1"
+    [ -n "${PHP_UPLOAD_MAX_FILESIZE:-}" ] && any_override="1"
+    [ -n "${PHP_MAX_EXECUTION_TIME:-}" ] && any_override="1"
 
     [ -n "$any_override" ] || return 0
 
@@ -327,10 +269,10 @@ apply_php_overrides() {
     mkdir -p "$override_dir"
 
     {
-        [ -n "$PHP_MEMORY_LIMIT" ] && echo "memory_limit = $PHP_MEMORY_LIMIT"
-        [ -n "$PHP_POST_MAX_SIZE" ] && echo "post_max_size = $PHP_POST_MAX_SIZE"
-        [ -n "$PHP_UPLOAD_MAX_FILESIZE" ] && echo "upload_max_filesize = $PHP_UPLOAD_MAX_FILESIZE"
-        [ -n "$PHP_MAX_EXECUTION_TIME" ] && echo "max_execution_time = $PHP_MAX_EXECUTION_TIME"
+        [ -n "${PHP_MEMORY_LIMIT:-}" ] && echo "memory_limit = $PHP_MEMORY_LIMIT"
+        [ -n "${PHP_POST_MAX_SIZE:-}" ] && echo "post_max_size = $PHP_POST_MAX_SIZE"
+        [ -n "${PHP_UPLOAD_MAX_FILESIZE:-}" ] && echo "upload_max_filesize = $PHP_UPLOAD_MAX_FILESIZE"
+        [ -n "${PHP_MAX_EXECUTION_TIME:-}" ] && echo "max_execution_time = $PHP_MAX_EXECUTION_TIME"
     } > "$override_dir/99-overrides.ini"
 
     export PHP_INI_SCAN_DIR=":$override_dir"

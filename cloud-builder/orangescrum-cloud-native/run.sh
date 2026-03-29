@@ -61,11 +61,8 @@ extract_frankenphp_app "$BINARY" php-server -r webroot -l "0.0.0.0:${PORT}" || e
 # Activate config templates
 copy_config_files "$EXTRACTED_APP"
 
-# Run migrations
-run_migrations "$BINARY" "$EXTRACTED_APP"
-
-# Run seeders (auto-detect)
-run_seeders "$BINARY" "$EXTRACTED_APP"
+# Initialize database (migrations + seeders via CakePHP command)
+init_database "$BINARY" "$EXTRACTED_APP"
 
 echo ""
 echo "=========================================="
