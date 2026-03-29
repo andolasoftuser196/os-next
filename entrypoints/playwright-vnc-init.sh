@@ -5,7 +5,8 @@ NOVNC_PORT=${NOVNC_PORT:-6080}
 export DISPLAY=:0
 
 start_xvfb() {
-  Xvfb :0 -screen 0 1280x1024x24 +extension RANDR &>/tmp/xvfb.log &
+  # Large virtual framebuffer so xrandr can resize down to any client viewport
+  Xvfb :0 -screen 0 1920x1080x24 +extension RANDR &>/tmp/xvfb.log &
   echo $! > /tmp/xvfb.pid
   echo "[vnc-init] Xvfb started (pid $!)"
 }
@@ -28,6 +29,16 @@ start_fluxbox() {
 }
 
 start_websockify() {
+  # Write index.html as a standalone redirect (not a symlink) to the full noVNC viewer.
+  # IMPORTANT: never symlink or overwrite vnc.html — it is the full noVNC UI with toolbar.
+  rm -f /usr/share/novnc/index.html
+  cat > /usr/share/novnc/index.html <<'EOF'
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<meta http-equiv="refresh" content="0; url=vnc.html?autoconnect=true&resize=remote">
+</head><body></body></html>
+EOF
   websockify --web /usr/share/novnc/ "$NOVNC_PORT" "localhost:$VNC_PORT" &>/tmp/websockify.log &
   echo $! > /tmp/websockify.pid
   echo "[vnc-init] websockify started (pid $!)"
