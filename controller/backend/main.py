@@ -309,6 +309,7 @@ def api_list_instances(user: str = Depends(verify_credentials)):
             "container_status": s["status"],
             "created_at": inst.get("created_at", ""),
             "source_path": inst.get("source_path", ""),
+            "branch": inst.get("branch", ""),
         })
     return {"domain": d, "instances": instances}
 

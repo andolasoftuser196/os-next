@@ -700,6 +700,7 @@ def instance_create(args):
     instance_type = args.type
     subdomain = args.subdomain or name
     source = args.source
+    branch = getattr(args, 'branch', None)
 
     # Validate name
     import re
@@ -730,18 +731,53 @@ def instance_create(args):
     domain = ctx['domain']
     domain_prefix = ctx['domain_prefix']
 
-    # Resolve source path
+    # Resolve source path (base repo for this instance type)
     if not source:
         source = DEFAULT_SOURCE_PATHS.get(instance_type, DEFAULT_SOURCE_PATHS['v4'])
-    source_abs = str(Path(source).resolve())
 
     if not Path(source).exists():
         print_colored(f"Error: Source path '{source}' does not exist.", Colors.RED)
         sys.exit(1)
 
+    # If --branch is specified, create a git worktree for this instance
+    worktree_path = None
+    if branch:
+        worktree_dir = Path('worktrees')
+        worktree_dir.mkdir(parents=True, exist_ok=True)
+        worktree_path = worktree_dir / f"{instance_type}-{name}"
+
+        if worktree_path.exists():
+            print_colored(f"Error: Worktree path '{worktree_path}' already exists.", Colors.RED)
+            sys.exit(1)
+
+        print_colored(f"Creating git worktree for branch '{branch}'...", Colors.BLUE)
+        source_repo = str(Path(source).resolve())
+        try:
+            # Fetch latest to make sure branch is available
+            subprocess.run(
+                ['git', 'fetch', '--all'],
+                cwd=source_repo, capture_output=True, text=True
+            )
+            # Create worktree on the specified branch
+            subprocess.run(
+                ['git', 'worktree', 'add', str(worktree_path.resolve()), branch],
+                cwd=source_repo, check=True, capture_output=True, text=True
+            )
+            print_colored(f"  Worktree created at {worktree_path} (branch: {branch})", Colors.GREEN)
+        except subprocess.CalledProcessError as e:
+            print_colored(f"Error: Could not create worktree: {e.stderr.strip()}", Colors.RED)
+            print_colored(f"  Make sure branch '{branch}' exists in {source}", Colors.YELLOW)
+            print_colored(f"  Available branches: git -C {source} branch -a", Colors.YELLOW)
+            sys.exit(1)
+
+        # Use the worktree as the source for this instance
+        source = str(worktree_path)
+
+    source_abs = str(Path(source).resolve())
+
     # Database naming
     db_name = f"{instance_type}_{name}".replace('-', '_')
-    db_user = instance_type.replace('-', '_')  # 'orangescrum' for v4, 'durango' for selfhosted
+    db_user = instance_type.replace('-', '_')
     if instance_type == 'v4':
         db_user = 'orangescrum'
     elif instance_type == 'selfhosted':
@@ -760,6 +796,8 @@ def instance_create(args):
     print(f"Type: {instance_type}")
     print(f"Subdomain: {subdomain}.{domain}")
     print(f"Source: {source}")
+    if branch:
+        print(f"Branch: {branch} (worktree)")
     print(f"Database: {db_name}")
     print()
 
@@ -866,7 +904,7 @@ def instance_create(args):
     # Update registry
     registry['domain'] = domain
     registry.setdefault('instances', {})
-    registry['instances'][name] = {
+    inst_record = {
         'type': instance_type,
         'subdomain': subdomain,
         'db_name': db_name,
@@ -876,6 +914,10 @@ def instance_create(args):
         'created_at': datetime.now().isoformat(),
         'status': 'running'
     }
+    if branch:
+        inst_record['branch'] = branch
+        inst_record['worktree_path'] = str(worktree_path)
+    registry['instances'][name] = inst_record
     save_registry(registry)
 
     # Summary
@@ -910,12 +952,13 @@ def instance_list(args):
     protocol = 'https' if ctx['enable_https'] else 'http'
 
     print_header("Dynamic Instances")
-    print(f"{'Name':<16} {'Type':<12} {'Subdomain':<24} {'Database':<24} {'Status'}")
-    print("-" * 96)
+    print(f"{'Name':<16} {'Type':<12} {'Branch':<16} {'URL':<32} {'Database':<24} {'Status'}")
+    print("-" * 116)
     for name, inst in instances.items():
         subdomain = inst.get('subdomain', name)
         url = f"{protocol}://{subdomain}.{domain}"
-        print(f"{name:<16} {inst['type']:<12} {url:<24} {inst['db_name']:<24} {inst.get('status', 'unknown')}")
+        branch = inst.get('branch', '(shared)')
+        print(f"{name:<16} {inst['type']:<12} {branch:<16} {url:<32} {inst['db_name']:<24} {inst.get('status', 'unknown')}")
     print()
 
 
@@ -1016,6 +1059,26 @@ def instance_destroy(args):
                 print_colored(f"  Database '{db_name}' dropped.", Colors.GREEN)
             except (subprocess.CalledProcessError, FileNotFoundError):
                 print_colored(f"  Warning: Could not drop database '{db_name}'.", Colors.YELLOW)
+
+    # Remove git worktree if this instance used one
+    worktree_path = inst.get('worktree_path')
+    if worktree_path:
+        wt = Path(worktree_path)
+        # Find the source repo to run git worktree remove
+        base_source = DEFAULT_SOURCE_PATHS.get(inst['type'], DEFAULT_SOURCE_PATHS['v4'])
+        source_repo = str(Path(base_source).resolve())
+        print_colored(f"Removing git worktree: {worktree_path}...", Colors.BLUE)
+        try:
+            subprocess.run(
+                ['git', 'worktree', 'remove', '--force', str(wt.resolve())],
+                cwd=source_repo, check=True, capture_output=True, text=True
+            )
+            print_colored(f"  Worktree removed.", Colors.GREEN)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            # Fallback: just delete the directory
+            if wt.exists():
+                shutil.rmtree(wt)
+            print_colored(f"  Worktree directory removed (manual cleanup).", Colors.YELLOW)
 
     # Remove instance directory
     if instance_dir.exists():
@@ -1199,6 +1262,7 @@ def build_instance_parser():
     p.add_argument('--name', required=True, help='Instance name (e.g., v4-main, next, sh-client1)')
     p.add_argument('--type', required=True, choices=['v4', 'selfhosted'], help='Instance type')
     p.add_argument('--subdomain', help='Subdomain (default: same as name)')
+    p.add_argument('--branch', help='Git branch — creates a worktree so this instance runs its own branch')
     p.add_argument('--source', help='Path to app source (default: apps/orangescrum-v4 or apps/durango-pg)')
 
     # list
