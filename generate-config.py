@@ -627,9 +627,13 @@ DEFAULT_SOURCE_PATHS = {
 def load_registry():
     """Load instance registry from JSON file"""
     if not REGISTRY_FILE.exists():
-        return {'domain': None, 'instances': {}}
+        return {'domain': detect_current_domain(), 'instances': {}}
     import json
-    return json.loads(REGISTRY_FILE.read_text())
+    reg = json.loads(REGISTRY_FILE.read_text())
+    # Backfill domain if missing
+    if not reg.get('domain'):
+        reg['domain'] = detect_current_domain()
+    return reg
 
 
 def save_registry(registry):
@@ -859,7 +863,7 @@ def instance_create(args):
         print_colored("  Warning: Docker not found. Start manually when ready.", Colors.YELLOW)
 
     # Update registry
-    registry.setdefault('domain', domain)
+    registry['domain'] = domain
     registry.setdefault('instances', {})
     registry['instances'][name] = {
         'type': instance_type,
