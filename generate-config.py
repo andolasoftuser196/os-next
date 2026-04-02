@@ -1221,6 +1221,48 @@ def handle_reset():
         except Exception as e:
             print_colored(f"Could not remove {f}: {e}", Colors.YELLOW)
 
+    # Stop and remove all instances
+    import subprocess
+    registry = load_registry()
+    for inst_name, inst in registry.get('instances', {}).items():
+        inst_dir = Path(f'instances/{inst_name}')
+        compose_file = inst_dir / 'docker-compose.yml'
+        if compose_file.exists():
+            print_colored(f"Stopping instance '{inst_name}'...", Colors.BLUE)
+            try:
+                subprocess.run(
+                    ['docker', 'compose', '-f', str(compose_file), 'down'],
+                    capture_output=True, text=True
+                )
+            except Exception:
+                pass
+
+        # Remove worktree if exists
+        worktree_path = inst.get('worktree_path')
+        if worktree_path and Path(worktree_path).exists():
+            base_source = DEFAULT_SOURCE_PATHS.get(inst['type'], DEFAULT_SOURCE_PATHS['v4'])
+            try:
+                subprocess.run(
+                    ['git', 'worktree', 'remove', '--force', str(Path(worktree_path).resolve())],
+                    cwd=str(Path(base_source).resolve()),
+                    capture_output=True, text=True
+                )
+            except Exception:
+                pass
+            if Path(worktree_path).exists():
+                shutil.rmtree(worktree_path, ignore_errors=True)
+            print_colored(f"  Removed worktree: {worktree_path}", Colors.GREEN)
+
+        # Remove instance directory
+        if inst_dir.exists():
+            shutil.rmtree(inst_dir)
+            print_colored(f"  Removed instances/{inst_name}/", Colors.GREEN)
+
+    # Reset registry
+    REGISTRY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    REGISTRY_FILE.write_text('{"domain": null, "instances": {}}\n')
+    print_colored("Instance registry reset.", Colors.GREEN)
+
     # Remove generated instance traefik configs
     try:
         traefik_dir = Path('traefik')
@@ -1233,6 +1275,12 @@ def handle_reset():
                     print_colored(f"Could not remove {lf}: {e}", Colors.YELLOW)
     except Exception:
         pass
+
+    # Remove worktrees directory
+    worktrees_dir = Path('apps') / 'worktrees'
+    if worktrees_dir.exists():
+        shutil.rmtree(worktrees_dir, ignore_errors=True)
+        print_colored(f"Removed: apps/worktrees/", Colors.GREEN)
 
     # Remove any generated .new files from dry-run
     try:
