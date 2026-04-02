@@ -1,44 +1,37 @@
 
 Next steps:
-  1. Build Docker images: ./build-images.sh
+  1. Build Docker images: ./build-images.sh all
   2. Generate SSL certificates: ./generate-certs.sh
-  3. Start Docker services: docker compose up -d
-  4. (Optional) Setup Apache reverse proxy on host:
-     a. Enable Apache modules:
-        sudo a2enmod proxy proxy_http proxy_wstunnel ssl rewrite headers
-     b. Install proxy configuration:
-        sudo cp apache-config-host/apache-proxy.conf /etc/apache2/sites-available/orangescrum-{{ domain | replace('.', '-') }}.conf
-        sudo a2ensite orangescrum-{{ domain | replace('.', '-') }}
-        sudo apache2ctl configtest
-        sudo systemctl reload apache2
-     c. See apache-config-host/PROXY_SETUP.md for details
+  3. Start base services: docker compose up -d
+  4. Create instances:
+     ./generate-config.py instance create --name v4-main --type v4 --subdomain v4
+     ./generate-config.py instance create --name sh-main --type selfhosted --subdomain selfhosted
   5. Run database setup:
-{% if services.orangescrum_v4 %}
-     ./setup-v4-database.sh
-{% endif %}
-{% if services.durango_pg %}
-     ./setup-pg-database.sh
-{% endif %}
 {% if services.orangescrum %}
      ./setup-v2-database.sh
 {% endif %}
+     ./generate-config.py instance db-setup --name v4-main
+     ./generate-config.py instance db-setup --name sh-main
 
-Multi-Tenant Configuration:
-  This instance uses unique ports to avoid conflicts with other setups:
-  - Traefik HTTP: {{ traefik_http_port }}
-  - Traefik HTTPS: {{ traefik_https_port }}
-  - PostgreSQL: {{ postgres_port }}
-  - MySQL: {{ mysql_port }}
-  - Redis: {{ redis_port }}
-  - Port Offset: {{ port_offset }} (based on domain hash)
+Instance Management:
+  Create:   ./generate-config.py instance create --name <name> --type <v4|selfhosted> --subdomain <sub>
+  List:     ./generate-config.py instance list
+  Stop:     ./generate-config.py instance stop --name <name>
+  Start:    ./generate-config.py instance start --name <name>
+  Destroy:  ./generate-config.py instance destroy --name <name> --drop-db
+  DB Setup: ./generate-config.py instance db-setup --name <name>
+  Logs:     ./generate-config.py instance logs --name <name> -f
+  Shell:    ./generate-config.py instance shell --name <name>
 
-Access points:
-  (Direct Traefik access - localhost only):
-  - Traefik HTTP: http://127.0.0.1:{{ traefik_http_port }}
-  - Traefik HTTPS: https://127.0.0.1:{{ traefik_https_port }}
-  - Traefik Dashboard: http://127.0.0.1:{{ traefik_dashboard_port }}/dashboard/
-  
-  (Via Apache proxy - standard ports 80/443):
+Access via VNC Browser:
+  Open: http://localhost:3000
+
+Access points (inside VNC browser):
 {% for point in access_points %}
   - {{ point.name }}: {{ point.url }}
 {% endfor %}
+
+Host-exposed ports (for IDE/tools):
+  - PostgreSQL: 127.0.0.1:{{ postgres_port }}
+  - MySQL: 127.0.0.1:{{ mysql_port }}
+  - Redis: 127.0.0.1:{{ redis_port }}

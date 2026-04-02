@@ -2,26 +2,24 @@
 # Domain: {{ domain }}
 # Generated: {{ generated_date }}
 # Port Offset: {{ port_offset }} (unique per domain for multi-tenant support)
-# 
-# This file exposes service ports for direct access during development
-# Each domain automatically gets unique ports to avoid conflicts
+#
+# This file exposes service ports for direct access during development.
+# Traefik runs on 80/443 internally; override exposes them to the host.
 # Use: docker compose up -d (automatically merges with docker-compose.yml)
-# 
+#
 # To disable port mappings (for production or shared environments):
 #   Rename this file to docker-compose.override.yml.disabled
 
 services:
   # Traefik reverse proxy ports
-  # Bind to 0.0.0.0 for LAN accessibility (allows reverse proxy from other machines)
-  # Unique ports per domain: {{ traefik_http_port }}{% if enable_https %}, {{ traefik_https_port }}{% endif %}
-
+  # Bind to 0.0.0.0 for accessibility
   traefik:
     ports:
       - "0.0.0.0:${TRAEFIK_HTTP_PORT:-{{ traefik_http_port }}}:80"
 {% if enable_https %}
       - "0.0.0.0:${TRAEFIK_HTTPS_PORT:-{{ traefik_https_port }}}:443"
 {% endif %}
-      - "127.0.0.1:${TRAEFIK_DASHBOARD_PORT:-{{ traefik_dashboard_port }}}:8080"
+
 {% if services.mysql %}
   # Direct MySQL access for database tools
   mysql:
@@ -30,7 +28,7 @@ services:
 {% endif %}
 
 {% if services.postgres16 %}
-  # PostgreSQL access
+  # PostgreSQL access (shared by all instances)
   postgres16:
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-{{ postgres_port }}}:5432"
@@ -52,23 +50,23 @@ services:
 {% endif %}
 
 {% if services.memcached_durango %}
-  # Memcached for Durango
+  # Memcached for instances
   memcached-durango:
     ports:
       - "127.0.0.1:${MEMCACHED_DURANGO_PORT:-{{ memcached_durango_port }}}:11211"
 {% endif %}
 
 {% if services.memcached_orangescrum %}
-  # Memcached for Orangescrum
+  # Memcached for Orangescrum V2
   memcached-orangescrum:
     ports:
       - "127.0.0.1:${MEMCACHED_ORANGESCRUM_PORT:-{{ memcached_orangescrum_port }}}:11211"
 {% endif %}
 
 {% if services.browser %}
-  # Browser testing access
+  # Browser VNC access (primary access method)
   browser:
     ports:
-      - "127.0.0.1:${BROWSER_HTTP_PORT:-13000}:3000"
-      - "127.0.0.1:${BROWSER_HTTPS_PORT:-13001}:3001"
+      - "127.0.0.1:${BROWSER_HTTP_PORT:-3000}:3000"
+      - "127.0.0.1:${BROWSER_HTTPS_PORT:-3001}:3001"
 {% endif %}

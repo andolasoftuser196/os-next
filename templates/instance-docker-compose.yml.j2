@@ -1,0 +1,43 @@
+# Auto-generated instance compose file
+# Instance: {{ instance_name }}
+# Type: {{ instance_type }}
+# Subdomain: {{ instance_subdomain }}.{{ domain }}
+# Generated: {{ generated_date }}
+#
+# Start:   docker compose -f instances/{{ instance_name }}/docker-compose.yml up -d
+# Stop:    docker compose -f instances/{{ instance_name }}/docker-compose.yml down
+# Logs:    docker compose -f instances/{{ instance_name }}/docker-compose.yml logs -f
+
+name: {{ domain_prefix }}-{{ instance_name }}
+
+services:
+  {{ instance_name }}:
+    image: orangescrum-php8.3:{{ domain_prefix }}
+    container_name: {{ domain_prefix }}-{{ instance_name }}
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - {{ source_path }}:/var/www/html
+      - {{ project_root }}/config/instance-apache.conf:/etc/apache2/sites-available/000-default.conf
+      - {{ project_root }}/config/php-custom-limits.ini:/etc/php/8.3/apache2/conf.d/99-custom-limits.ini
+{% if enable_https %}
+      - {{ project_root }}/certs/{{ domain }}.crt:/usr/local/share/ca-certificates/{{ domain }}.crt:ro
+{% endif %}
+    env_file:
+      - ./.env
+{% if enable_https %}
+    environment:
+      - SSL_CERT_FILE=/usr/local/share/ca-certificates/{{ domain }}.crt
+      - CURL_CA_BUNDLE=/usr/local/share/ca-certificates/{{ domain }}.crt
+{% endif %}
+    networks:
+      traefik-network:
+      durango-backend:
+
+networks:
+  traefik-network:
+    external: true
+    name: {{ domain_prefix }}-traefik
+  durango-backend:
+    external: true
+    name: {{ domain_prefix }}-durango

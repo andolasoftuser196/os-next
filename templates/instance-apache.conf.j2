@@ -1,0 +1,19 @@
+# Auto-generated Apache configuration for dynamic instances (V4/Selfhosted)
+# Generated: {{ generated_date }}
+# Used by all dynamic instances - Traefik handles subdomain routing
+
+<VirtualHost *:80>
+    ServerName localhost
+    ServerAdmin webmaster@localhost
+    DocumentRoot /var/www/html/webroot
+
+    <Directory /var/www/html/webroot>
+        Options FollowSymLinks
+        DirectoryIndex index.php index.html
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    ErrorLog ${APACHE_LOG_DIR}/app-error.log
+    CustomLog ${APACHE_LOG_DIR}/app-access.log combined
+</VirtualHost>

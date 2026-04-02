@@ -1,58 +1,49 @@
 # Auto-generated Traefik dynamic configuration
 # Domain: {{ domain }}
 # Generated: {{ generated_date }}
+#
+# V4/Selfhosted instance routes are in separate files (traefik/instance-*.yml)
+# Traefik auto-discovers them via file provider watch.
+# Priority: instance routes (100) > reserved routes (100) > V2 wildcard (10)
 
 http:
   routers:
-{% if services.orangescrum_v4 or services.orangescrum or services.durango_pg %}
-    # Root domain redirect to primary application
+{% if services.orangescrum %}
+    # Root domain redirect to V2 landing
     root-redirect:
       rule: "Host(`{{ domain }}`)"
       middlewares:
         - redirect-root
       entryPoints:
         - {% if enable_https %}websecure{% else %}web{% endif %}
+
       priority: 150
 {% if enable_https %}
       tls: {}
 {% endif %}
       service: noop@internal
-{% endif %}
 
-{% if services.durango_pg %}
-    # Durango PG - selfhosted subdomain
-    durango-pg:
-      rule: "Host(`selfhosted.{{ domain }}`)"
-      service: durango-pg
-      entryPoints:
-        - {% if enable_https %}websecure{% else %}web{% endif %}
-      priority: 100
-{% if enable_https %}
-      tls: {}
-{% endif %}
-{% endif %}
-
-{% if services.orangescrum_v4 %}
-    # OrangeScrum V4 - v4 subdomain
-    orangescrum-v4:
-      rule: "Host(`v4.{{ domain }}`)"
-      service: orangescrum-v4
-      entryPoints:
-        - {% if enable_https %}websecure{% else %}web{% endif %}
-      priority: 100
-{% if enable_https %}
-      tls: {}
-{% endif %}
-{% endif %}
-
-{% if services.orangescrum %}
-    # OrangeScrum V2 - app subdomain (and www)
-    orangescrum:
-      rule: "Host(`app.{{ domain }}`, `www.{{ domain }}`)"
+    # V2 explicit routes (www = landing, app = inner app, old-selfhosted = v2 selfhosted)
+    orangescrum-explicit:
+      rule: "Host(`app.{{ domain }}`) || Host(`www.{{ domain }}`) || Host(`old-selfhosted.{{ domain }}`)"
       service: orangescrum
       entryPoints:
         - {% if enable_https %}websecure{% else %}web{% endif %}
+
       priority: 100
+{% if enable_https %}
+      tls: {}
+{% endif %}
+
+    # V2 wildcard catch-all for tenant subdomains (low priority)
+    # Any subdomain not matched by an instance or reserved route falls through to V2
+    orangescrum-wildcard:
+      rule: "HostRegexp(`{subdomain:[a-z0-9-]+}.{{ domain }}`)"
+      service: orangescrum
+      entryPoints:
+        - {% if enable_https %}websecure{% else %}web{% endif %}
+
+      priority: 10
 {% if enable_https %}
       tls: {}
 {% endif %}
@@ -65,6 +56,33 @@ http:
       service: mailhog
       entryPoints:
         - {% if enable_https %}websecure{% else %}web{% endif %}
+
+      priority: 100
+{% if enable_https %}
+      tls: {}
+{% endif %}
+{% endif %}
+
+{% if services.minio %}
+    # MinIO S3 API
+    minio-api:
+      rule: "Host(`storage.{{ domain }}`)"
+      service: minio-api
+      entryPoints:
+        - {% if enable_https %}websecure{% else %}web{% endif %}
+
+      priority: 100
+{% if enable_https %}
+      tls: {}
+{% endif %}
+
+    # MinIO Console
+    minio-console:
+      rule: "Host(`console.{{ domain }}`)"
+      service: minio-console
+      entryPoints:
+        - {% if enable_https %}websecure{% else %}web{% endif %}
+
       priority: 100
 {% if enable_https %}
       tls: {}
@@ -77,35 +95,22 @@ http:
       service: api@internal
       entryPoints:
         - {% if enable_https %}websecure{% else %}web{% endif %}
+
       priority: 100
 {% if enable_https %}
       tls: {}
 {% endif %}
 
   middlewares:
-{% if services.orangescrum_v4 or services.orangescrum or services.durango_pg %}
+{% if services.orangescrum %}
     redirect-root:
       redirectRegex:
         regex: "^{{ 'https' if enable_https else 'http' }}://{{ domain }}/(.*)"
-        replacement: "{{ 'https' if enable_https else 'http' }}://{% if services.orangescrum_v4 %}v4{% elif services.durango_pg %}selfhosted{% elif services.orangescrum %}app{% else %}traefik{% endif %}.{{ domain }}/${1}"
+        replacement: "{{ 'https' if enable_https else 'http' }}://app.{{ domain }}/${1}"
         permanent: true
 {% endif %}
 
   services:
-{% if services.durango_pg %}
-    durango-pg:
-      loadBalancer:
-        servers:
-          - url: "http://durango-pg:80"
-{% endif %}
-
-{% if services.orangescrum_v4 %}
-    orangescrum-v4:
-      loadBalancer:
-        servers:
-          - url: "http://orangescrum-v4:80"
-{% endif %}
-
 {% if services.orangescrum %}
     orangescrum:
       loadBalancer:
@@ -120,6 +125,19 @@ http:
           - url: "http://mailhog:8025"
 {% endif %}
 
+{% if services.minio %}
+    minio-api:
+      loadBalancer:
+        servers:
+          - url: "http://minio:9000"
+
+    minio-console:
+      loadBalancer:
+        servers:
+          - url: "http://minio:9001"
+{% endif %}
+
+{% if enable_https %}
 tls:
   certificates:
     - certFile: /certs/{{ domain }}.crt
@@ -129,3 +147,4 @@ tls:
       defaultCertificate:
         certFile: /certs/{{ domain }}.crt
         keyFile: /certs/{{ domain }}.key
+{% endif %}

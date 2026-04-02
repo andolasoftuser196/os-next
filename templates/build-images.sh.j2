@@ -11,7 +11,7 @@ DOMAIN_PREFIX="{{ domain_prefix }}"
 BUILDER_UID="${BUILDER_UID:-$(id -u)}"
 BUILDER_GID="${BUILDER_GID:-$(id -g)}"
 NODE_VERSION="${NODE_VERSION:-{{ node_version | default('20.x') }}}"
-BUILD_TARGET="${1:-php8.3-node}"
+BUILD_TARGET="${1:-all}"
 
 echo "========================================"
 echo "Building OrangeScrum Docker Images"
@@ -45,11 +45,10 @@ print_usage() {
 Usage: ./build-images.sh [target]
 
 Targets:
-  php8.3-node  Build base + PHP 8.3 Node image (default)
-  php8.3       Build base + PHP 8.3 image
-  php7.2       Build base + PHP 7.2 image
+  all          Build base + all app images (default)
+  php8.3       Build base + PHP 8.3 + Node image (V4/selfhosted instances)
+  php7.2       Build base + PHP 7.2 image (V2)
   base         Build only base image
-  all          Build base + all app images
 EOF
 }
 
@@ -66,27 +65,14 @@ build_base() {
 }
 
 build_php83() {
-    print_step "Building PHP 8.3 image..."
+    print_step "Building PHP 8.3 + Node image..."
     docker build \
         --file Dockerfile.php8.3 \
         --build-arg BASE_IMAGE=orangescrum-base:${DOMAIN_PREFIX} \
         --build-arg BUILDER_UID=${BUILDER_UID} \
         --build-arg BUILDER_GID=${BUILDER_GID} \
-        --tag orangescrum-php8.3:${DOMAIN_PREFIX} \
-        .
-    print_success "PHP 8.3 image built successfully"
-    echo ""
-}
-
-build_php83_node() {
-    print_step "Building PHP 8.3 + Node image..."
-    docker build \
-        --file Dockerfile.php8.3-node \
-        --build-arg BASE_IMAGE=orangescrum-base:${DOMAIN_PREFIX} \
-        --build-arg BUILDER_UID=${BUILDER_UID} \
-        --build-arg BUILDER_GID=${BUILDER_GID} \
         --build-arg NODE_VERSION=${NODE_VERSION} \
-        --tag orangescrum-php8.3-node:${DOMAIN_PREFIX} \
+        --tag orangescrum-php8.3:${DOMAIN_PREFIX} \
         .
     print_success "PHP 8.3 + Node image built successfully"
     echo ""
@@ -118,10 +104,6 @@ case "${BUILD_TARGET}" in
         build_base
         build_php83
         ;;
-    php8.3-node)
-        build_base
-        build_php83_node
-        ;;
     php7.2)
         build_base
         build_php72
@@ -129,7 +111,6 @@ case "${BUILD_TARGET}" in
     all)
         build_base
         build_php83
-        build_php83_node
         build_php72
         ;;
     *)
@@ -145,16 +126,7 @@ print_success "Build target '${BUILD_TARGET}' completed successfully!"
 echo "========================================"
 echo ""
 echo "Next steps:"
-echo "  1. Start services: docker compose up -d"
-echo "  2. View logs: docker compose logs -f"
-echo "  3. Access applications:"
-{% if services.orangescrum_v4 %}
-echo "     - OrangeScrum V4: https://v4.${DOMAIN}"
-{% endif %}
-{% if services.durango_pg %}
-echo "     - Durango PG: https://selfhosted.${DOMAIN}"
-{% endif %}
-{% if services.orangescrum %}
-echo "     - OrangeScrum V2: https://app.${DOMAIN}"
-{% endif %}
+echo "  1. Start base services: docker compose up -d"
+echo "  2. Create instances: ./generate-config.py instance create --name <name> --type <v4|selfhosted>"
+echo "  3. Access via VNC browser: http://localhost:3000"
 echo ""

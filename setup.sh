@@ -24,7 +24,7 @@ echo "Builder UID:GID: ${YELLOW}${BUILDER_UID}:${BUILDER_GID}${NC}"
 echo ""
 
 # Check prerequisites
-echo -e "${BLUE}[1/6] Checking prerequisites...${NC}"
+echo -e "${BLUE}[1/8] Checking prerequisites...${NC}"
 
 if ! command -v docker &> /dev/null; then
     echo -e "${RED}✗ Docker not installed${NC}"
@@ -54,27 +54,22 @@ echo -e "${GREEN}✓ OpenSSL installed${NC}"
 
 echo ""
 
-# Check application directories (optional)
-echo -e "${BLUE}[2/6] Checking application directories...${NC}"
+# Check application directories
+echo -e "${BLUE}[2/8] Checking application directories...${NC}"
 
-if [ ! -d "apps/durango-pg" ]; then
-    echo -e "${YELLOW}⚠ apps/durango-pg not found (will use empty directory)${NC}"
-    mkdir -p apps/durango-pg
-else
-    echo -e "${GREEN}✓ apps/durango-pg exists${NC}"
-fi
-
-if [ ! -d "apps/orangescrum" ]; then
-    echo -e "${YELLOW}⚠ apps/orangescrum not found (will use empty directory)${NC}"
-    mkdir -p apps/orangescrum
-else
-    echo -e "${GREEN}✓ apps/orangescrum exists${NC}"
-fi
+for app_dir in apps/orangescrum apps/durango-pg apps/orangescrum-v4; do
+    if [ ! -d "$app_dir" ]; then
+        echo -e "${YELLOW}⚠ $app_dir not found (will use empty directory)${NC}"
+        mkdir -p "$app_dir"
+    else
+        echo -e "${GREEN}✓ $app_dir exists${NC}"
+    fi
+done
 
 echo ""
 
 # Setup Python venv
-echo -e "${BLUE}[3/6] Setting up Python environment...${NC}"
+echo -e "${BLUE}[3/8] Setting up Python environment...${NC}"
 if [ ! -d ".venv" ]; then
     python3 -m venv .venv
     .venv/bin/pip install --upgrade pip -q
@@ -87,14 +82,14 @@ fi
 echo ""
 
 # Generate configurations
-echo -e "${BLUE}[4/6] Generating configurations for ${DOMAIN}...${NC}"
+echo -e "${BLUE}[4/8] Generating configurations for ${DOMAIN}...${NC}"
 .venv/bin/python3 generate-config.py "${DOMAIN}" -y
-echo -e "${GREEN}✓ Configurations generated and .env files applied${NC}"
+echo -e "${GREEN}✓ Configurations generated${NC}"
 
 echo ""
 
 # Generate SSL certificates
-echo -e "${BLUE}[5/6] Generating SSL certificates...${NC}"
+echo -e "${BLUE}[5/8] Generating SSL certificates...${NC}"
 if [ -f "certs/${DOMAIN}.crt" ]; then
     echo -e "${YELLOW}Certificate exists, skipping...${NC}"
 else
@@ -102,72 +97,80 @@ else
     echo -e "${GREEN}✓ SSL certificates generated${NC}"
 fi
 
-# Start services (build + up)
-echo -e "${BLUE}[6/6] Building images and starting services...${NC}"
-# If a generated build script exists, use it to build base and derived images first
+# Build images
+echo -e "${BLUE}[6/8] Building Docker images...${NC}"
 if [ -f "./build-images.sh" ]; then
     chmod +x ./build-images.sh || true
-    echo -e "${BLUE}Running build-images.sh to build base images...${NC}"
-    if ./build-images.sh; then
-        echo -e "${GREEN}✓ Images built via build-images.sh${NC}"
+    if ./build-images.sh all; then
+        echo -e "${GREEN}✓ Images built${NC}"
     else
         echo -e "${YELLOW}build-images.sh failed; falling back to 'docker compose build'${NC}"
         docker compose build || true
     fi
 else
-    echo -e "${YELLOW}build-images.sh not found; running 'docker compose build'${NC}"
     docker compose build || true
 fi
 
+# Start base services
+echo -e "${BLUE}[7/8] Starting base services...${NC}"
 docker compose up -d
-echo -e "${GREEN}✓ Services started${NC}"
+echo -e "${GREEN}✓ Base services started (traefik, V2, databases, browser, dns)${NC}"
 
-# Run database setup scripts (best-effort)
-echo -e "${BLUE}Setting up databases...${NC}"
-if [ -x "./setup-databases.sh" ]; then
-    ./setup-databases.sh || echo "Warning: setup-databases.sh failed"
+echo ""
+
+# Create default instances
+echo -e "${BLUE}[8/8] Creating default instances...${NC}"
+
+# Wait for PostgreSQL to be ready
+echo -e "${YELLOW}Waiting for PostgreSQL...${NC}"
+for i in $(seq 1 30); do
+    if docker compose exec -T postgres16 pg_isready -U postgres > /dev/null 2>&1; then
+        echo -e "${GREEN}✓ PostgreSQL ready${NC}"
+        break
+    fi
+    sleep 2
+done
+
+# Create default V4 instance
+if [ -d "apps/orangescrum-v4" ]; then
+    echo -e "${BLUE}Creating default V4 instance...${NC}"
+    .venv/bin/python3 generate-config.py instance create --name v4-main --type v4 --subdomain v4 || echo -e "${YELLOW}V4 instance creation had warnings${NC}"
 fi
+
+# Create default selfhosted instance
+if [ -d "apps/durango-pg" ]; then
+    echo -e "${BLUE}Creating default selfhosted instance...${NC}"
+    .venv/bin/python3 generate-config.py instance create --name sh-main --type selfhosted --subdomain selfhosted || echo -e "${YELLOW}Selfhosted instance creation had warnings${NC}"
+fi
+
+# Setup V2 database
 if [ -x "./setup-v2-database.sh" ]; then
-    ./setup-v2-database.sh || echo "Warning: setup-v2-database.sh failed"
+    echo -e "${BLUE}Setting up V2 database...${NC}"
+    ./setup-v2-database.sh || echo -e "${YELLOW}V2 database setup had warnings${NC}"
 fi
 
 echo ""
 
 # Final instructions
-echo -e "${BLUE}[6/6] Setup complete!${NC}"
-echo ""
-
-# Get LAN IP
-LAN_IP=$(hostname -I | awk '{print $1}')
-
 echo -e "${GREEN}╔════════════════════════════════════════════════╗"
-echo "║   Next Steps                                   ║"
+echo "║   Setup Complete!                               ║"
 echo "╚════════════════════════════════════════════════╝${NC}"
 echo ""
-echo "1. Start services:"
-echo -e "   ${YELLOW}docker compose up -d${NC}"
+echo -e "${BLUE}Access via VNC Browser:${NC}"
+echo "  Open: http://localhost:3000"
 echo ""
-echo "2. Setup databases:"
-echo -e "   ${YELLOW}# V2 Orangescrum (MySQL):${NC}"
-echo -e "   ${YELLOW}./setup-v2-database.sh${NC}"
-echo -e "   ${YELLOW}# V4 Durango PG (PostgreSQL):${NC}"
-echo -e "   ${YELLOW}./setup-databases.sh${NC}"
+echo -e "${BLUE}URLs (inside VNC browser):${NC}"
+echo "  V2 Landing:       https://www.${DOMAIN}"
+echo "  V2 App:           https://app.${DOMAIN}"
+echo "  V4 OrangeScrum:   https://v4.${DOMAIN}"
+echo "  Selfhosted:       https://selfhosted.${DOMAIN}"
+echo "  MailHog:          https://mail.${DOMAIN}"
+echo "  Traefik:          https://traefik.${DOMAIN}"
 echo ""
-echo "3. Install Chrome launchers:"
-echo -e "   ${YELLOW}# Linux:${NC}"
-echo -e "   ${YELLOW}cp launchers/linux-${DOMAIN}-*.desktop ~/.local/share/applications/${NC}"
-echo -e "   ${YELLOW}# Windows (WSL):${NC}"
-echo -e "   ${YELLOW}# Use launchers/windows-${DOMAIN}-*.bat files${NC}"
-echo ""
-echo -e "${BLUE}Access URLs:${NC}"
-echo "  V2 (Orangescrum):    https://app.${DOMAIN}"
-echo "  V4 (OrangeScrum):    https://v4.${DOMAIN}"
-echo "  V4 (Durango PG):     https://selfhosted.${DOMAIN}"
-echo "  MailHog:             https://mail.${DOMAIN}"
-echo "  MinIO API:           https://storage.${DOMAIN}"
-echo "  MinIO Console:       https://console.${DOMAIN}"
-echo "  Traefik Dashboard:   https://traefik.${DOMAIN}/dashboard/"
-echo ""
-echo -e "${BLUE}LAN Access:${NC}"
-echo "  From other devices, use the LAN launcher (maps to ${LAN_IP})"
+echo -e "${BLUE}Instance Management:${NC}"
+echo "  List instances:    ./generate-config.py instance list"
+echo "  Create V4:         ./generate-config.py instance create --name <name> --type v4 --subdomain <sub>"
+echo "  Create Selfhosted: ./generate-config.py instance create --name <name> --type selfhosted --subdomain <sub>"
+echo "  Destroy:           ./generate-config.py instance destroy --name <name> --drop-db"
+echo "  DB migrations:     ./generate-config.py instance db-setup --name <name>"
 echo ""

@@ -1,0 +1,15 @@
+# Auto-generated dnsmasq configuration
+# Domain: {{ domain }}
+# Generated: {{ generated_date }}
+#
+# Resolves all *.{{ domain }} to the Traefik container (static IP on browser-internal network)
+# This enables the VNC browser to reach any subdomain without restarting services
+
+# Resolve all subdomains to Traefik
+address=/{{ domain }}/172.28.0.2
+
+# Don't forward unknown queries upstream (isolated dev environment)
+no-resolv
+
+# Log queries for debugging (view with: docker logs <domain-prefix>-dns)
+log-queries

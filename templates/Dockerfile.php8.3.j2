@@ -1,5 +1,6 @@
-# PHP 8.3 Environment for OrangeScrum V4 & Durango
+# PHP 8.3 + Node.js Environment for OrangeScrum V4 & Selfhosted
 # Based on common Ubuntu base
+# Includes Node.js {{ node_version | default('20') }} for Vue.js development and builds
 # Generated: {{ generation_date }}
 
 ARG BASE_IMAGE=orangescrum-base:{{ domain | replace('.', '-') }}
@@ -28,6 +29,21 @@ RUN apt update && \
         php8.3-opcache && \
     apt clean && rm -rf /var/lib/apt/lists/*
 
+# Install Node.js from NodeSource
+ARG NODE_VERSION={{ node_version | default('20') }}
+RUN apt update && \
+    apt install -y --no-install-recommends ca-certificates curl gnupg && \
+    mkdir -p /etc/apt/keyrings && \
+    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
+    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_VERSION}.x nodistro main" > /etc/apt/sources.list.d/nodesource.list && \
+    apt update && \
+    apt install -y --no-install-recommends nodejs && \
+    node -v && npm -v && \
+    apt clean && rm -rf /var/lib/apt/lists/*
+
+# Install common Node.js build tools
+RUN npm install -g yarn pnpm
+
 # Install Composer (latest version)
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
@@ -36,7 +52,7 @@ COPY php-trust-certs.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/php-trust-certs.sh
 
 # Copy entrypoint scripts
-COPY entrypoints/orangescrum-v4.sh /usr/local/bin/
+COPY entrypoints/orangescrum-v4.sh /usr/local/bin/orangescrum-v4.sh
 RUN chmod +x /usr/local/bin/orangescrum-v4.sh || true
 
 # Set PHP version for CLI

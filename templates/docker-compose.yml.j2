@@ -1,6 +1,9 @@
 # Auto-generated Docker Compose configuration
 # Domain: {{ domain }}
 # Generated: {{ generated_date }}
+#
+# V4/Selfhosted apps are managed as dynamic instances.
+# Use: ./generate-config.py instance create --name <name> --type <v4|selfhosted> --subdomain <sub>
 
 name: orangescrum-{{ domain | replace('.', '-') }}
 
@@ -17,7 +20,6 @@ services:
       - "--providers.file.directory=/etc/traefik/dynamic"
       - "--providers.file.watch=true"
       - "--providers.docker=false"
-      - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
 {% if enable_https %}
       - "--entrypoints.websecure.address=:443"
@@ -27,172 +29,25 @@ services:
     volumes:
       - ./traefik:/etc/traefik/dynamic:ro
       - ./certs:/certs:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       traefik-network:
       browser-internal:
-        aliases:
-          - {{ domain }}
-          - v4.{{ domain }}
-          - mail.{{ domain }}
-          - traefik.{{ domain }}
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.{{ domain }}`)"
-      - "traefik.http.routers.traefik-dashboard.entrypoints={% if enable_https %}websecure{% else %}web{% endif %}"
-{% if enable_https %}
-      - "traefik.http.routers.traefik-dashboard.tls=true"
-{% endif %}
-      - "traefik.http.routers.traefik-dashboard.service=api@internal"
-      - "traefik.http.routers.traefik-dashboard.priority=100"
+        ipv4_address: 172.28.0.2
 
-  # Durango - PHP 8.3 + PostgreSQL
-{% if services.durango_pg %}
-  durango-pg:
-    build:
-      context: .
-      dockerfile: Dockerfile.php8.3
-      args:
-        BUILDER_UID: {{ builder_uid }}
-        BASE_IMAGE: orangescrum-base:{{ domain | replace('.', '-') }}
-    image: orangescrum-php8.3:{{ domain | replace('.', '-') }}
-    container_name: {{ domain_prefix }}-durango-pg
+  # DNS resolver for browser (resolves *.{{ domain }} to Traefik)
+  dns:
+    image: jpillora/dnsmasq
+    container_name: {{ domain_prefix }}-dns
     restart: unless-stopped
-    working_dir: /var/www/html
     volumes:
-      - ./apps/durango-pg:/var/www/html
-      - ./config/durango-apache.conf:/etc/apache2/sites-available/000-default.conf
-      - ./config/php-custom-limits.ini:/etc/php/8.3/apache2/conf.d/99-custom-limits.ini
-{% if enable_https %}
-      - ./certs/{{ domain }}.crt:/usr/local/share/ca-certificates/{{ domain }}.crt:ro
-{% endif %}
-    env_file:
-      - ./os-pg/.env
-{% if enable_https %}
-    environment:
-      - SSL_CERT_FILE=/usr/local/share/ca-certificates/{{ domain }}.crt
-      - CURL_CA_BUNDLE=/usr/local/share/ca-certificates/{{ domain }}.crt
-{% endif %}
+      - ./config/dnsmasq.conf:/etc/dnsmasq.conf:ro
     networks:
-      traefik-network:
-      durango-backend:
       browser-internal:
-    depends_on:
-      - postgres16
-{% if services.memcached_durango %}
-      - memcached-durango
-{% elif services.redis_durango %}
-      - redis-durango
-{% endif %}
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.durango.rule=Host(`selfhosted.{{ domain }}`)"
-      - "traefik.http.routers.durango.entrypoints={% if enable_https %}websecure{% else %}web{% endif %}"
-{% if enable_https %}
-      - "traefik.http.routers.durango.tls=true"
-{% endif %}
-      - "traefik.http.services.durango.loadbalancer.server.port=80"
+        ipv4_address: 172.28.0.3
+    logging:
+      driver: "none"
 
-{% endif %}
-  # OrangeScrum V4 - PHP 8.3 + PostgreSQL
-{% if services.orangescrum_v4 %}
-  orangescrum-v4:
-    build:
-      context: .
-      dockerfile: {% if services.enable_node %}Dockerfile.php8.3-node{% else %}Dockerfile.php8.3{% endif %}
-
-      args:
-        BUILDER_UID: {{ builder_uid }}
-        BASE_IMAGE: orangescrum-base:{{ domain | replace('.', '-') }}
-{% if services.enable_node %}
-        NODE_VERSION: {{ node_version | default('20.x') }}
-{% endif %}
-    image: orangescrum-{% if services.enable_node %}php8.3-node{% else %}php8.3{% endif %}:{{ domain | replace('.', '-') }}
-    container_name: {{ domain_prefix }}-orangescrum-v4
-    restart: unless-stopped
-    working_dir: /var/www/html
-    volumes:
-      - ./apps/orangescrum-v4:/var/www/html
-      - ./config/durango-apache.conf:/etc/apache2/sites-available/000-default.conf
-      - ./config/php-custom-limits.ini:/etc/php/8.3/apache2/conf.d/99-custom-limits.ini
-{% if enable_https %}
-      - ./certs/{{ domain }}.crt:/usr/local/share/ca-certificates/{{ domain }}.crt:ro
-{% endif %}
-    env_file:
-      - ./os-v4/.env
-{% if enable_https %}
-    environment:
-      - SSL_CERT_FILE=/usr/local/share/ca-certificates/{{ domain }}.crt
-      - CURL_CA_BUNDLE=/usr/local/share/ca-certificates/{{ domain }}.crt
-{% endif %}
-    networks:
-      traefik-network:
-      durango-backend:
-    depends_on:
-      - postgres16
-{% if services.memcached_durango %}
-      - memcached-durango
-{% elif services.redis_durango %}
-      - redis-durango
-{% endif %}
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.orangescrum-v4.rule=Host(`v4.{{ domain }}`)"
-      - "traefik.http.routers.orangescrum-v4.entrypoints={% if enable_https %}websecure{% else %}web{% endif %}"
-{% if enable_https %}
-      - "traefik.http.routers.orangescrum-v4.tls=true"
-{% endif %}
-      - "traefik.http.services.orangescrum-v4.loadbalancer.server.port=80"
-
-{% endif %}
-  # OrangeScrum Cloud - FrankenPHP Binary (Production Cloud)
-{% if services.orangescrum_cloud %}
-  orangescrum-cloud:
-    build:
-      context: ./cloud-builder/orangescrum-cloud
-      dockerfile: Dockerfile
-    container_name: {{ domain_prefix }}-orangescrum-cloud
-    restart: unless-stopped
-    env_file:
-      - ./os-v4/.env
-    networks:
-      traefik-network:
-      durango-backend:
-    depends_on:
-      - postgres16
-      - redis-durango
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.orangescrum-cloud.rule=Host(`cloud.{{ domain }}`)"
-      - "traefik.http.routers.orangescrum-cloud.entrypoints={% if enable_https %}websecure{% else %}web{% endif %}"
-{% if enable_https %}
-      - "traefik.http.routers.orangescrum-cloud.tls=true"
-{% endif %}
-      - "traefik.http.services.orangescrum-cloud.loadbalancer.server.port=80"
-
-{% endif %}
-  # OrangeScrum Cloud Queue Worker
-{% if services.orangescrum_cloud_queue %}
-  orangescrum-cloud-queue:
-    build:
-      context: ./cloud-builder/orangescrum-cloud
-      dockerfile: Dockerfile
-    container_name: {{ domain_prefix }}-orangescrum-cloud-queue
-    restart: unless-stopped
-    env_file:
-      - ./os-v4/.env
-    environment:
-      - QUEUE_WORKER=true
-    command: ["/orangescrum-app/osv4-prod", "php-cli", "bin/cake.php", "queue", "worker", "--verbose"]
-    networks:
-      durango-backend:
-      browser-internal:
-    depends_on:
-      - postgres16
-      - redis-durango
-
-{% endif %}
-  # Orangescrum - PHP 7.2 + MySQL
+  # Orangescrum V2 - PHP 7.2 + MySQL (static service, wildcard tenant routing)
 {% if services.orangescrum %}
   orangescrum:
     build:
@@ -224,17 +79,9 @@ services:
     depends_on:
       - mysql
       - memcached-orangescrum
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.orangescrum.rule=HostRegexp(`{subdomain:[a-z0-9-]+}.{{ domain }}`) && !Host(`v4.{{ domain }}`) && !Host(`cloud.{{ domain }}`) && !Host(`selfhosted.{{ domain }}`) && !Host(`traefik.{{ domain }}`) && !Host(`storage.{{ domain }}`) && !Host(`console.{{ domain }}`) && !Host(`mail.{{ domain }}`)"
-      - "traefik.http.routers.orangescrum.entrypoints={% if enable_https %}websecure{% else %}web{% endif %}"
-{% if enable_https %}
-      - "traefik.http.routers.orangescrum.tls=true"
-{% endif %}
-      - "traefik.http.services.orangescrum.loadbalancer.server.port=80"
 
 {% endif %}
-  # PostgreSQL 16 for Durango
+  # PostgreSQL 16 (shared by all V4/selfhosted instances)
 {% if services.postgres16 %}
   postgres16:
     image: postgres:16.10
@@ -242,14 +89,13 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: durango
+      POSTGRES_DB: postgres
       POSTGRES_USER: postgres
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./postgres-init:/docker-entrypoint-initdb.d
     networks:
       durango-backend:
-      browser-internal:
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -257,7 +103,7 @@ services:
       retries: 5
 
 {% endif %}
-  # MySQL 8 for Orangescrum (native password, no strict mode)
+  # MySQL 8 for Orangescrum V2
 {% if services.mysql %}
   mysql:
     image: mysql:8.0
@@ -281,7 +127,7 @@ services:
       retries: 5
 
 {% endif %}
-  # Redis for Durango Queue
+  # Redis (shared by all V4/selfhosted instances, isolated by key prefix)
 {% if services.redis_durango %}
   redis-durango:
     image: redis:7-alpine
@@ -297,7 +143,7 @@ services:
       retries: 5
 
 {% endif %}
-  # Memcached for Durango
+  # Memcached for Durango (alternative to Redis)
 {% if services.memcached_durango %}
   memcached-durango:
     image: memcached:1.6-alpine
@@ -308,7 +154,7 @@ services:
       durango-backend:
 
 {% endif %}
-  # Memcached for Orangescrum (separate instance to avoid key conflicts)
+  # Memcached for Orangescrum V2
 {% if services.memcached_orangescrum %}
   memcached-orangescrum:
     image: memcached:1.6-alpine
@@ -335,23 +181,6 @@ services:
       traefik-network:
       durango-backend:
       orangescrum-backend:
-      browser-internal:
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.minio-api.rule=Host(`storage.{{ domain }}`)"
-      - "traefik.http.routers.minio-api.entrypoints={% if enable_https %}websecure{% else %}web{% endif %}"
-{% if enable_https %}
-      - "traefik.http.routers.minio-api.tls=true"
-{% endif %}
-      - "traefik.http.routers.minio-api.service=minio-api"
-      - "traefik.http.services.minio-api.loadbalancer.server.port=9000"
-      - "traefik.http.routers.minio-console.rule=Host(`console.{{ domain }}`)"
-      - "traefik.http.routers.minio-console.entrypoints={% if enable_https %}websecure{% else %}web{% endif %}"
-{% if enable_https %}
-      - "traefik.http.routers.minio-console.tls=true"
-{% endif %}
-      - "traefik.http.routers.minio-console.service=minio-console"
-      - "traefik.http.services.minio-console.loadbalancer.server.port=9001"
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 30s
@@ -369,17 +198,9 @@ services:
       traefik-network:
       durango-backend:
       orangescrum-backend:
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.mailhog.rule=Host(`mail.{{ domain }}`)"
-      - "traefik.http.routers.mailhog.entrypoints={% if enable_https %}websecure{% else %}web{% endif %}"
-{% if enable_https %}
-      - "traefik.http.routers.mailhog.tls=true"
-{% endif %}
-      - "traefik.http.services.mailhog.loadbalancer.server.port=8025"
 
 {% endif %}
-  # Browser with VNC for testing
+  # Browser with VNC (primary access method for all apps)
 {% if services.browser %}
   browser:
     image: lscr.io/linuxserver/chromium:latest
@@ -397,47 +218,18 @@ services:
       - CUSTOM_USER=${BROWSER_USER:-browser}
       - PASSWORD=${BROWSER_PASSWORD:-browser}
       - CHROME_CLI=--disable-gpu --disable-software-rasterizer --ignore-certificate-errors --allow-insecure-localhost
+    dns:
+      - 172.28.0.3
     volumes:
       - ./browser-config:/config
       - ./certs:/certs:ro
       - ./entrypoints/browser-trust-certs.sh:/custom-cont-init.d/10-browser-trust-certs.sh:ro
     networks:
       browser-internal:
-{% endif %}
-  # Apache Reverse Proxy (for LAN access)
-  # Enables access via public domain (e.g., ossiba.com) while routing to internal domain (ossiba.local)
-  # Use: docker compose --profile lan-access up -d
-  apache-proxy:
-    image: httpd:2.4-alpine
-    container_name: {{ domain_prefix }}-apache-proxy
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./apache-config-host/apache-proxy-container.conf:/usr/local/apache2/conf/extra/proxy.conf:ro
-{% if enable_https %}
-      - ./certs:/certs:ro
-{% endif %}
-    command: >
-      sh -c "
-      echo 'Include conf/extra/proxy.conf' >> /usr/local/apache2/conf/httpd.conf &&
-      sed -i 's/#LoadModule proxy_module/LoadModule proxy_module/' /usr/local/apache2/conf/httpd.conf &&
-      sed -i 's/#LoadModule proxy_http_module/LoadModule proxy_http_module/' /usr/local/apache2/conf/httpd.conf &&
-{% if enable_https %}
-      sed -i 's/#LoadModule ssl_module/LoadModule ssl_module/' /usr/local/apache2/conf/httpd.conf &&
-      sed -i 's/#LoadModule socache_shmcb_module/LoadModule socache_shmcb_module/' /usr/local/apache2/conf/httpd.conf &&
-{% endif %}
-      sed -i 's/#LoadModule rewrite_module/LoadModule rewrite_module/' /usr/local/apache2/conf/httpd.conf &&
-      sed -i 's/#LoadModule headers_module/LoadModule headers_module/' /usr/local/apache2/conf/httpd.conf &&
-      httpd-foreground
-      "
-    networks:
-      traefik-network:
     depends_on:
       - traefik
-    profiles:
-      - lan-access
+      - dns
+{% endif %}
 
 volumes:
   postgres-data:
@@ -453,8 +245,9 @@ networks:
     name: {{ domain_prefix }}-durango
   browser-internal:
     driver: bridge
-    driver_opts:
-      com.docker.network.bridge.enable_ip_masquerade: "false"
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
     name: {{ domain_prefix }}-browser-internal
   orangescrum-backend:
     driver: bridge

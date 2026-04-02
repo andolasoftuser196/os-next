@@ -1,0 +1,23 @@
+# Auto-generated Traefik routing for instance: {{ instance_name }}
+# Type: {{ instance_type }}
+# Subdomain: {{ instance_subdomain }}.{{ domain }}
+# Generated: {{ generated_date }}
+
+http:
+  routers:
+    instance-{{ instance_name }}:
+      rule: "Host(`{{ instance_subdomain }}.{{ domain }}`)"
+      service: instance-{{ instance_name }}
+      entryPoints:
+        - {% if enable_https %}websecure{% else %}web{% endif %}
+
+      priority: 100
+{% if enable_https %}
+      tls: {}
+{% endif %}
+
+  services:
+    instance-{{ instance_name }}:
+      loadBalancer:
+        servers:
+          - url: "http://{{ instance_name }}:80"

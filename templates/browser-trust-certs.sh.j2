@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Auto-generated browser certificate trust script
-# Domain: user196.online
-# Generated: 2026-04-02 19:35:23
+# Domain: {{ domain }}
+# Generated: {{ generated_date }}
 set -e
 
-DOMAIN="user196.online"
+DOMAIN="{{ domain }}"
 CERT_SRC="/certs/${DOMAIN}.crt"
 CERT_DST="/usr/local/share/ca-certificates/${DOMAIN}.crt"
 
