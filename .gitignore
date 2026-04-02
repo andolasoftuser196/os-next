@@ -48,7 +48,7 @@ instances/
 !instances/.gitkeep
 
 # Git worktrees for branch-based instances
-worktrees/
+apps/worktrees/
 
 # Generated Dockerfiles (auto-generated from templates/)
 Dockerfile.base

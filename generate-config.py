@@ -739,12 +739,14 @@ def instance_create(args):
         print_colored(f"Error: Source path '{source}' does not exist.", Colors.RED)
         sys.exit(1)
 
-    # If --branch is specified, create a git worktree for this instance
+    # If --branch is specified, create a git worktree under apps/worktrees/<repo>/<branch>
     worktree_path = None
     if branch:
-        worktree_dir = Path('worktrees')
+        repo_name = Path(source).name  # e.g. "orangescrum-v4" or "durango-pg"
+        branch_dir = branch.replace('/', '-')  # e.g. "enhance/kanban-ui" -> "enhance-kanban-ui"
+        worktree_dir = Path('apps') / 'worktrees' / repo_name
         worktree_dir.mkdir(parents=True, exist_ok=True)
-        worktree_path = worktree_dir / f"{instance_type}-{name}"
+        worktree_path = worktree_dir / branch_dir
 
         if worktree_path.exists():
             print_colored(f"Error: Worktree path '{worktree_path}' already exists.", Colors.RED)
