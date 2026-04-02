@@ -1,5 +1,5 @@
 """
-OrangeScrum Controller — FastAPI Backend
+Dev Controller — FastAPI Backend
 Manages dynamic V4/selfhosted instances, container status, logs, and web terminal.
 """
 
@@ -37,7 +37,7 @@ INSTANCES_DIR = PROJECT_ROOT / "instances"
 AUTH_USER = os.environ.get("CONTROLLER_USER", "admin")
 AUTH_PASS = os.environ.get("CONTROLLER_PASS", "")
 
-app = FastAPI(title="OrangeScrum Controller", version="1.0.0", docs_url=None, redoc_url=None)
+app = FastAPI(title="Dev Controller", version="1.0.0", docs_url=None, redoc_url=None)
 security = HTTPBasic()
 
 
@@ -148,8 +148,8 @@ class CreateInstanceRequest(BaseModel):
 RESERVED_SUBDOMAINS = {"www", "app", "mail", "traefik", "storage", "console", "old-selfhosted", "control"}
 
 DEFAULT_SOURCE_PATHS = {
-    "v4": "./apps/orangescrum-v4",
-    "selfhosted": "./apps/durango-pg",
+    "v4": os.environ.get("DEFAULT_V4_SOURCE", "./apps/orangescrum-v4"),
+    "selfhosted": os.environ.get("DEFAULT_SELFHOSTED_SOURCE", "./apps/durango-pg"),
 }
 
 
@@ -199,14 +199,37 @@ def detect_cache_engine():
     return "redis"
 
 
+def _get_base_service_names() -> set:
+    """Read service names from docker-compose.yml dynamically."""
+    compose = PROJECT_ROOT / "docker-compose.yml"
+    if not compose.exists():
+        return set()
+    services = set()
+    in_services = False
+    for line in compose.read_text().splitlines():
+        stripped = line.strip()
+        if stripped == "services:":
+            in_services = True
+            continue
+        if in_services:
+            if line and not line[0].isspace():
+                break  # exited services block
+            # Top-level service: exactly 2-space indent, ends with ':'
+            if line.startswith("  ") and not line.startswith("    ") and stripped.endswith(":") and not stripped.startswith("#"):
+                svc = stripped.rstrip(":").strip()
+                if svc:
+                    services.add(svc)
+    services.add("controller")  # always include self
+    return services
+
+
 def sanitize_container_name(name: str) -> str:
     """Validate that a name resolves to a known container in our ecosystem."""
     prefix = get_domain_prefix()
     registry = load_registry()
 
     # Check if it's a known base service
-    base_services = {"traefik", "postgres16", "mysql", "redis-durango",
-                     "memcached-orangescrum", "orangescrum", "mailhog", "dns", "browser", "controller"}
+    base_services = _get_base_service_names()
     if name in base_services:
         return f"{prefix}-{name}"
 
@@ -276,8 +299,7 @@ def validate_source_path(source: str) -> str:
 def api_status(user: str = Depends(verify_credentials)):
     prefix = get_domain_prefix()
     https = detect_https()
-    base_services = ["traefik", "postgres16", "mysql", "redis-durango",
-                     "memcached-orangescrum", "orangescrum", "mailhog", "dns", "browser"]
+    base_services = list(_get_base_service_names())
     services = {}
     for svc in base_services:
         services[svc] = get_container_status(f"{prefix}-{svc}")
@@ -338,7 +360,7 @@ def api_create_instance(req: CreateInstanceRequest, user: str = Depends(verify_c
 
     # Sanitized database identifiers
     db_name = safe_sql_identifier(f"{instance_type}_{name}")
-    db_user = "orangescrum" if instance_type == "v4" else "durango"
+    db_user = os.environ.get("DEFAULT_V4_DB_USER", "appuser") if instance_type == "v4" else os.environ.get("DEFAULT_SELFHOSTED_DB_USER", "appuser")
     db_password = db_user
 
     security_salt = hashlib.sha256(secrets.token_bytes(64)).hexdigest()
@@ -515,8 +537,7 @@ def api_instance_stats(name: str, user: str = Depends(verify_credentials)):
 @app.get("/api/services/stats")
 def api_services_stats(user: str = Depends(verify_credentials)):
     prefix = get_domain_prefix()
-    services = ["traefik", "postgres16", "mysql", "redis-durango",
-                "memcached-orangescrum", "orangescrum", "mailhog", "dns", "browser"]
+    services = list(_get_base_service_names() - {"controller"})
     return {svc: get_container_stats(f"{prefix}-{svc}") for svc in services}
 
 

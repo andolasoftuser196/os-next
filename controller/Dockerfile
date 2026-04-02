@@ -1,4 +1,4 @@
-# OrangeScrum Controller — FastAPI + Vue SPA
+# Dev Controller — FastAPI + Vue SPA
 FROM node:20-slim AS frontend-build
 WORKDIR /build
 COPY frontend/package.json frontend/package-lock.json* ./

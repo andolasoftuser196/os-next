@@ -19,7 +19,7 @@
         <div>
           <label style="display: block; font-size: 12px; color: #8b949e; margin-bottom: 4px">Type</label>
           <select v-model="form.type" style="width: 140px">
-            <option value="v4">V4 (OrangeScrum)</option>
+            <option value="v4">V4 (Cloud)</option>
             <option value="selfhosted">Selfhosted</option>
           </select>
         </div>
