@@ -616,7 +616,7 @@ def print_next_steps(domain, services, enable_https=True):
 ## Instance Management
 ## ============================================================
 
-RESERVED_SUBDOMAINS = {'www', 'app', 'mail', 'traefik', 'storage', 'console', 'old-selfhosted'}
+RESERVED_SUBDOMAINS = {'www', 'app', 'mail', 'traefik', 'storage', 'console', 'old-selfhosted', 'control'}
 REGISTRY_FILE = Path('instances/registry.json')
 DEFAULT_SOURCE_PATHS = {
     'v4': './apps/orangescrum-v4',

@@ -200,6 +200,22 @@ services:
       orangescrum-backend:
 
 {% endif %}
+  # Controller — Web UI for instance management
+  controller:
+    build:
+      context: ./controller
+      dockerfile: Dockerfile
+    image: orangescrum-controller:{{ domain | replace('.', '-') }}
+    container_name: {{ domain_prefix }}-controller
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - .:/project:rw
+    environment:
+      - PROJECT_ROOT=/project
+    networks:
+      traefik-network:
+
   # Browser with VNC (primary access method for all apps)
 {% if services.browser %}
   browser:

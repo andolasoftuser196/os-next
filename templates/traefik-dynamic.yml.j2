@@ -89,6 +89,18 @@ http:
 {% endif %}
 {% endif %}
 
+    # Controller Web UI
+    controller:
+      rule: "Host(`control.{{ domain }}`)"
+      service: controller
+      entryPoints:
+        - {% if enable_https %}websecure{% else %}web{% endif %}
+
+      priority: 100
+{% if enable_https %}
+      tls: {}
+{% endif %}
+
     # Traefik Dashboard
     traefik-dashboard:
       rule: "Host(`traefik.{{ domain }}`)"
@@ -117,6 +129,11 @@ http:
         servers:
           - url: "http://orangescrum:80"
 {% endif %}
+
+    controller:
+      loadBalancer:
+        servers:
+          - url: "http://controller:8900"
 
 {% if services.mailhog %}
     mailhog:
