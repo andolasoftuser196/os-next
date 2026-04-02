@@ -1,6 +1,9 @@
 <template>
   <div>
-    <h1 style="margin-bottom: 20px">Dashboard</h1>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px">
+      <h1>Dashboard</h1>
+      <button class="btn" @click="refresh" :disabled="loading">{{ loading ? 'Refreshing...' : 'Refresh' }}</button>
+    </div>
 
     <div class="grid grid-4" style="margin-bottom: 24px" v-if="status">
       <div class="card">
@@ -87,6 +90,7 @@ import { api } from '../api.js'
 const status = ref(null)
 const instances = ref([])
 const serviceStats = ref({})
+const loading = ref(false)
 
 const instanceCount = computed(() => instances.value.length)
 const runningCount = computed(() => {
@@ -101,11 +105,18 @@ function badgeClass(s) {
   return 'badge-error'
 }
 
-onMounted(async () => {
+async function loadAll() {
   const [s, i] = await Promise.all([api.getStatus(), api.getInstances()])
   status.value = s
   instances.value = i.instances
-  // Load stats in background (can be slow)
   api.getServicesStats().then(stats => serviceStats.value = stats).catch(() => {})
-})
+}
+
+async function refresh() {
+  loading.value = true
+  await loadAll()
+  loading.value = false
+}
+
+onMounted(loadAll)
 </script>

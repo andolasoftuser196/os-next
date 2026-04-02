@@ -2,7 +2,10 @@
   <div>
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px">
       <h1>Instances</h1>
-      <button class="btn btn-primary" @click="showCreate = !showCreate">+ New Instance</button>
+      <div class="actions">
+        <button class="btn" @click="refresh" :disabled="loading">{{ loading ? 'Refreshing...' : 'Refresh' }}</button>
+        <button class="btn btn-primary" @click="showCreate = !showCreate">+ New Instance</button>
+      </div>
     </div>
 
     <!-- Create Form -->
@@ -45,6 +48,7 @@
             <h3 style="margin: 0">{{ inst.name }}</h3>
             <span class="badge" :class="badgeClass(inst.container_status)">{{ inst.container_status }}</span>
             <span style="color: #8b949e; font-size: 12px">{{ inst.type }}</span>
+            <span v-if="inst.branch" style="color: #d2a8ff; font-size: 12px; font-family: monospace">{{ inst.branch }}</span>
           </div>
           <div style="font-size: 13px; color: #8b949e">
             <a :href="inst.url" target="_blank" style="color: #58a6ff">{{ inst.url }}</a>
@@ -56,15 +60,21 @@
           </div>
         </div>
         <div class="actions">
-          <button v-if="inst.container_status !== 'running'" class="btn btn-primary" @click="start(inst.name)">Start</button>
-          <button v-if="inst.container_status === 'running'" class="btn btn-warning" @click="stop(inst.name)">Stop</button>
-          <button class="btn" @click="dbSetup(inst.name)">DB Setup</button>
-          <router-link :to="`/terminal/${inst.name}`" class="btn">Terminal</router-link>
-          <router-link :to="`/logs/${inst.name}`" class="btn">Logs</router-link>
-          <button class="btn btn-danger" @click="destroy(inst.name)">Destroy</button>
+          <button v-if="inst.container_status !== 'running'" class="btn btn-primary" @click="start(inst.name)" :disabled="actionLoading[inst.name]">
+            {{ actionLoading[inst.name] ? '...' : 'Start' }}
+          </button>
+          <button v-if="inst.container_status === 'running'" class="btn btn-warning" @click="stop(inst.name)" :disabled="actionLoading[inst.name]">
+            {{ actionLoading[inst.name] ? '...' : 'Stop' }}
+          </button>
+          <button class="btn" @click="dbSetup(inst.name)" :disabled="actionLoading[inst.name]">DB Setup</button>
+          <router-link v-if="inst.container_status === 'running'" :to="`/terminal/${inst.name}`" class="btn">Terminal</router-link>
+          <router-link v-if="inst.container_status === 'running'" :to="`/logs/${inst.name}`" class="btn">Logs</router-link>
+          <button class="btn btn-danger" @click="destroy(inst.name)" :disabled="actionLoading[inst.name]">Destroy</button>
         </div>
       </div>
-      <div v-if="messages[inst.name]" style="margin-top: 8px; font-size: 13px; color: #3fb950">{{ messages[inst.name] }}</div>
+      <div v-if="messages[inst.name]" :style="{ marginTop: '8px', fontSize: '13px', color: messageColor(inst.name) }">
+        {{ messages[inst.name] }}
+      </div>
     </div>
 
     <div v-if="!instances.length && !showCreate" class="card" style="text-align: center; color: #8b949e; padding: 40px">
@@ -74,15 +84,18 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { api } from '../api.js'
 
 const instances = ref([])
 const showCreate = ref(false)
 const creating = ref(false)
+const loading = ref(false)
 const createError = ref('')
 const createSuccess = ref('')
 const messages = ref({})
+const messageErrors = ref({})
+const actionLoading = reactive({})
 
 const form = ref({ name: '', type: 'v4', subdomain: '', source: '' })
 
@@ -90,6 +103,10 @@ function badgeClass(s) {
   if (s === 'running') return 'badge-running'
   if (s === 'exited' || s === 'stopped') return 'badge-stopped'
   return 'badge-error'
+}
+
+function messageColor(name) {
+  return messageErrors.value[name] ? '#f85149' : '#3fb950'
 }
 
 function formatDate(d) {
@@ -100,6 +117,14 @@ function formatDate(d) {
 async function load() {
   const data = await api.getInstances()
   instances.value = data.instances
+}
+
+async function refresh() {
+  loading.value = true
+  messages.value = {}
+  messageErrors.value = {}
+  await load()
+  loading.value = false
 }
 
 async function create() {
@@ -124,33 +149,60 @@ async function create() {
 }
 
 async function start(name) {
-  await api.startInstance(name)
-  messages.value[name] = 'Started'
+  actionLoading[name] = true
+  messageErrors.value[name] = false
+  try {
+    await api.startInstance(name)
+    messages.value[name] = 'Started'
+  } catch (e) {
+    messages.value[name] = `Start failed: ${e.message}`
+    messageErrors.value[name] = true
+  }
   await load()
+  actionLoading[name] = false
 }
 
 async function stop(name) {
-  await api.stopInstance(name)
-  messages.value[name] = 'Stopped'
+  actionLoading[name] = true
+  messageErrors.value[name] = false
+  try {
+    await api.stopInstance(name)
+    messages.value[name] = 'Stopped'
+  } catch (e) {
+    messages.value[name] = `Stop failed: ${e.message}`
+    messageErrors.value[name] = true
+  }
   await load()
+  actionLoading[name] = false
 }
 
 async function destroy(name) {
-  if (!confirm(`Destroy instance '${name}'? This will remove the container and config.\n\nDrop database too?`)) return
+  if (!confirm(`Destroy instance '${name}'?\nThis will remove the container and config.`)) return
   const dropDb = confirm('Also drop the PostgreSQL database?')
-  await api.destroyInstance(name, dropDb)
-  messages.value[name] = 'Destroyed'
-  await load()
+  actionLoading[name] = true
+  try {
+    await api.destroyInstance(name, dropDb)
+    messages.value[name] = 'Destroyed'
+    await load()
+  } catch (e) {
+    messages.value[name] = `Destroy failed: ${e.message}`
+    messageErrors.value[name] = true
+  }
+  actionLoading[name] = false
 }
 
 async function dbSetup(name) {
+  actionLoading[name] = true
   messages.value[name] = 'Running migrations...'
+  messageErrors.value[name] = false
   try {
-    const res = await api.dbSetup(name)
+    await api.dbSetup(name)
     messages.value[name] = 'DB setup complete'
   } catch (e) {
     messages.value[name] = `DB setup failed: ${e.message}`
+    messageErrors.value[name] = true
   }
+  actionLoading[name] = false
 }
 
 onMounted(load)
