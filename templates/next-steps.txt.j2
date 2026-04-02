@@ -26,12 +26,13 @@ Instance Management:
 Access via VNC Browser:
   Open: http://localhost:3000
 
+Controller Web UI:
+  https://control.{{ domain }}  (credentials in .env: CONTROLLER_USER/CONTROLLER_PASS)
+
 Access points (inside VNC browser):
 {% for point in access_points %}
   - {{ point.name }}: {{ point.url }}
 {% endfor %}
 
-Host-exposed ports (for IDE/tools):
-  - PostgreSQL: 127.0.0.1:{{ postgres_port }}
-  - MySQL: 127.0.0.1:{{ mysql_port }}
-  - Redis: 127.0.0.1:{{ redis_port }}
+Host-exposed ports (see .env for values):
+  - PostgreSQL, MySQL, Redis, Memcached — bound to 127.0.0.1

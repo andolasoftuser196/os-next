@@ -596,6 +596,7 @@ def print_next_steps(domain, services, enable_https=True):
         {"name": "Storage (MinIO)", "url": f"{protocol}://storage.{domain}"},
         {"name": "Storage Console", "url": f"{protocol}://console.{domain}"},
         {"name": "Traefik Dashboard", "url": f"{protocol}://traefik.{domain}"},
+        {"name": "Controller", "url": f"{protocol}://control.{domain}"},
         {"name": "VNC Browser", "url": "http://localhost:3000"},
     ]
     
