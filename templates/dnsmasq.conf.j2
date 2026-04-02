@@ -8,8 +8,9 @@
 # Resolve all subdomains to Traefik
 address=/{{ domain }}/172.28.0.2
 
-# Don't forward unknown queries upstream (isolated dev environment)
-no-resolv
+# Forward other queries to public DNS
+server=8.8.8.8
+server=1.1.1.1
 
 # Log queries for debugging (view with: docker logs <domain-prefix>-dns)
 log-queries

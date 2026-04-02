@@ -13,6 +13,12 @@ if [ ! -f "$CERT_SRC" ]; then
   exit 0
 fi
 
+# Install certutil if missing (needed for Chromium NSS database)
+if ! command -v certutil &>/dev/null; then
+  echo "[browser-trust-certs] Installing libnss3-tools for certutil..."
+  apt-get update -qq && apt-get install -y -qq libnss3-tools >/dev/null 2>&1
+fi
+
 # Add to system trust store
 cp "$CERT_SRC" "$CERT_DST"
 update-ca-certificates
