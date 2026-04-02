@@ -1,0 +1,40 @@
+# Exclude app source code (mounted as volumes, not baked into images)
+apps/
+instances/
+backups/
+
+# Git and IDE
+.git/
+.github/
+.vscode/
+.idea/
+
+# Python venv
+.venv/
+venv/
+
+# Browser config
+browser-config/
+
+# Cloud builder (out of scope)
+cloud-builder/
+
+# Certs (mounted as volumes)
+certs/
+
+# Documentation
+*.md
+LICENSE
+
+# Logs and temp
+logs/
+tmp/
+*.log
+*.tmp
+
+# Templates (only needed by generate-config.py, not Docker)
+templates/
+
+# OS files
+.DS_Store
+Thumbs.db

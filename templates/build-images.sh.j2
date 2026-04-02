@@ -54,6 +54,7 @@ EOF
 
 build_base() {
     print_step "Building base Ubuntu image..."
+    docker image rm orangescrum-base:${DOMAIN_PREFIX} 2>/dev/null || true
     docker build \
         --file Dockerfile.base \
         --build-arg BUILDER_UID=${BUILDER_UID} \
@@ -66,6 +67,7 @@ build_base() {
 
 build_php83() {
     print_step "Building PHP 8.3 + Node image..."
+    docker image rm orangescrum-php8.3:${DOMAIN_PREFIX} 2>/dev/null || true
     docker build \
         --file Dockerfile.php8.3 \
         --build-arg BASE_IMAGE=orangescrum-base:${DOMAIN_PREFIX} \
@@ -80,6 +82,7 @@ build_php83() {
 
 build_php72() {
     print_step "Building PHP 7.2 image..."
+    docker image rm orangescrum-php7.2:${DOMAIN_PREFIX} 2>/dev/null || true
     docker build \
         --file Dockerfile.php7.2 \
         --build-arg BASE_IMAGE=orangescrum-base:${DOMAIN_PREFIX} \

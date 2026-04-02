@@ -1,15 +1,17 @@
 # PHP 7.2 Environment for OrangeScrum V2 (Legacy)
 # Based on common Ubuntu base
+# Includes MySQL client for V2 database access
 # Generated: {{ generation_date }}
 
 ARG BASE_IMAGE=orangescrum-base:{{ domain | replace('.', '-') }}
 FROM ${BASE_IMAGE}
 
-# Install PHP 7.2 and required extensions
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install PHP 7.2, MySQL client — single apt layer
 RUN apt update && \
     apt install -y --no-install-recommends \
         libapache2-mod-php7.2 \
-        php7.2 \
         php7.2-cli \
         php7.2-common \
         php7.2-mbstring \
@@ -22,18 +24,17 @@ RUN apt update && \
         php7.2-memcached \
         php7.2-soap \
         php7.2-bcmath \
-        php7.2-json && \
+        php7.2-json \
+        mysql-client && \
     apt clean && rm -rf /var/lib/apt/lists/*
 
-# Install Composer (pinned to version 2.2 for PHP 7.2 compatibility)
+# Install Composer (pinned to 2.2 for PHP 7.2 compatibility)
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer --2.2
 
-# Copy certificate trust script
+# Copy scripts and set permissions
 COPY php-trust-certs.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/php-trust-certs.sh
-
-# Set PHP version for CLI
-RUN update-alternatives --set php /usr/bin/php7.2
+RUN chmod +x /usr/local/bin/php-trust-certs.sh && \
+    update-alternatives --set php /usr/bin/php7.2
 
 WORKDIR /var/www/html
 
