@@ -1,228 +1,254 @@
-# OrangeScrum Multi-Environment Docker Setup
+# Dev Environment — Dynamic Multi-App Docker Setup
 
-Complete Docker setup for OrangeScrum with multiple versions and environments:
+Docker-based developer environment with dynamic instance management. Run multiple app versions and branches simultaneously, each with its own subdomain, database, and container.
 
-- **V2 (Orangescrum)**: PHP 7.2 + MySQL 8.0
-- **V4 (OrangeScrum)**: PHP 8.3 + PostgreSQL 16
-- **V4 (Durango PG)**: PHP 8.3 + PostgreSQL 16
+## Architecture
+
+```
+                    VNC Browser (http://localhost:3000)
+                           |
+                      [ Traefik :80/:443 ]
+                           |
+        +------------------+------------------+------------------+
+        |                  |                  |                  |
+   app.domain         v4.domain        selfhosted.domain   control.domain
+   www.domain         next.domain      sh-client1.domain
+   *.domain           fix-123.domain
+        |                  |                  |                  |
+   [ V2 Static ]    [ Dynamic Instances ]                [ Controller ]
+   PHP 7.2+MySQL    PHP 8.3+Node+PostgreSQL              FastAPI+Vue
+                    (one per branch/feature)
+```
+
+**Base services** (always running): Traefik, PostgreSQL 16, MySQL 8, Redis, Memcached, MailHog, DNS, Browser, Controller
+
+**Dynamic instances** (on demand): Each gets its own container, database, Redis prefix, Traefik route, and optionally its own git branch via worktrees.
 
 ## Quick Start
 
 ```bash
-# 1. Run setup script
-./setup.sh ossiba.online
+# 1. Generate configs for your domain
+./generate-config.py user196.online
 
-# 2. Start services
+# 2. Generate SSL certificates
+./generate-certs.sh
+
+# 3. Build Docker images
+./build-images.sh all
+
+# 4. Start base services
 docker compose up -d
 
-# 3. Setup databases
-./setup-v2-database.sh      # For V2 Orangescrum (MySQL)
-./setup-databases.sh        # For V4 Durango PG (PostgreSQL)
+# 5. Create your first instances
+./generate-config.py instance create --name v4-main --type v4 --subdomain v4
+./generate-config.py instance create --name sh-main --type selfhosted --subdomain selfhosted
+
+# 6. Access via VNC browser
+# Open http://localhost:3000 in your browser
 ```
+
+Or use the one-command setup:
+
+```bash
+./setup.sh user196.online
+```
+
+## Instance Management
+
+### Create
+
+```bash
+# V4 instance on default source (apps/orangescrum-v4)
+./generate-config.py instance create --name v4-main --type v4 --subdomain v4
+
+# Selfhosted instance
+./generate-config.py instance create --name sh-main --type selfhosted --subdomain selfhosted
+
+# Instance on a specific branch (creates a git worktree)
+./generate-config.py instance create --name v4-kanban --type v4 \
+  --subdomain kanban --branch enhance/kanban-ui
+
+# Instance from a custom source path
+./generate-config.py instance create --name v4-custom --type v4 \
+  --subdomain custom --source ./apps/my-fork
+```
+
+### Lifecycle
+
+```bash
+./generate-config.py instance list                        # List all instances
+./generate-config.py instance stop --name v4-kanban       # Stop
+./generate-config.py instance start --name v4-kanban      # Start
+./generate-config.py instance destroy --name v4-kanban --drop-db  # Destroy + drop DB
+./generate-config.py instance db-setup --name v4-main     # Run migrations & seeds
+./generate-config.py instance logs --name v4-main -f      # Stream logs
+./generate-config.py instance shell --name v4-main        # Shell into container
+```
+
+### Web Controller
+
+Full management UI at `https://control.<domain>`:
+
+- Dashboard with service status and resource usage
+- Create/start/stop/destroy instances
+- Run database migrations
+- Live log streaming
+- Web terminal (shell into any container)
+
+Credentials are in `.env` (`CONTROLLER_USER` / `CONTROLLER_PASS`).
+
+## Domain Routing
+
+| Subdomain | Routes to |
+|-----------|-----------|
+| `www.<domain>` | V2 landing page |
+| `app.<domain>` | V2 inner app |
+| `old-selfhosted.<domain>` | V2 selfhosted |
+| `*.<domain>` | V2 tenant wildcard (catch-all, lowest priority) |
+| `v4.<domain>` | Dynamic V4 instance |
+| `next.<domain>` | Dynamic V4 instance (feature branch) |
+| `selfhosted.<domain>` | Dynamic selfhosted instance |
+| `mail.<domain>` | MailHog email testing |
+| `traefik.<domain>` | Traefik dashboard |
+| `control.<domain>` | Controller web UI |
+
+Routing uses Traefik priority: specific instance routes (100) always win over the V2 wildcard (10). New instances are auto-discovered via Traefik's file watcher.
+
+## Branch Workflow
+
+Run multiple branches simultaneously, each with its own isolated environment:
+
+```bash
+# Main branch — shared codebase
+./generate-config.py instance create --name v4-main --type v4 --subdomain v4
+
+# Feature branch — own worktree, DB, subdomain
+./generate-config.py instance create --name v4-kanban --type v4 \
+  --subdomain kanban --branch enhance/kanban-ui
+
+# Bugfix branch
+./generate-config.py instance create --name v4-fix --type v4 \
+  --subdomain fix --branch fix/issue-456
+
+# Each accessible at its own URL:
+#   https://v4.user196.online       → main
+#   https://kanban.user196.online   → enhance/kanban-ui
+#   https://fix.user196.online      → fix/issue-456
+```
+
+Worktrees are stored at `apps/worktrees/<repo>/<branch>/` and cleaned up on destroy.
 
 ## Access Points
 
-| Service | URL | Description |
-| --------- | ----- | ------------- |
-| **V2 (Orangescrum)** | <https://app.ossiba.online> | PHP 7.2 + MySQL (wildcard: *.ossiba.online) |
-| **V4 (OrangeScrum)** | <https://v4.ossiba.online> | PHP 8.3 + PostgreSQL (orangescrum DB) |
-| **V4 (Durango PG)** | <https://selfhosted.ossiba.online> | PHP 8.3 + PostgreSQL (durango DB) |
-| **MailHog** | <https://mail.ossiba.online> | Email testing interface |
-| **MinIO API** | <https://storage.ossiba.online> | S3-compatible storage |
-| **MinIO Console** | <https://console.ossiba.online> | Storage management UI |
-| **Traefik Dashboard** | <https://traefik.ossiba.online/dashboard/> | Reverse proxy dashboard |
+All apps are accessed through the VNC browser at **http://localhost:3000**.
 
-## Services
+Inside the browser, navigate to any subdomain over HTTPS. The self-signed certificate is auto-trusted via dnsmasq + certutil.
 
-### Application Servers
+Host-exposed ports for IDE/database tools (bound to 127.0.0.1):
 
-- **durango-pg**: PHP 8.3 with Apache (PostgreSQL database: `durango`)
-- **orangescrum-v4**: PHP 8.3 with Apache (PostgreSQL database: `orangescrum`)
-- **orangescrum**: PHP 7.2 with Apache (MySQL database)
+| Service | Port | Notes |
+|---------|------|-------|
+| PostgreSQL | See `.env` | Shared by all V4/selfhosted instances |
+| MySQL | See `.env` | V2 only |
+| Redis | See `.env` | Shared, isolated by key prefix |
+| VNC Browser | 3000 | Primary access method |
 
-### Databases
-
-- **postgres16**: PostgreSQL 16.10 (port 5433)
-  - Database: `durango` (user: `durango`)
-  - Database: `orangescrum` (user: `orangescrum`)
-- **mysql**: MySQL 8.0 (port 3307)
-  - Database: `orangescrum` (user: `osuser`)
-
-### Caching & Queue
-
-- **redis-durango**: Redis 7 for V4 queue (port 6380)
-- **memcached-durango**: Memcached for V4 apps (port 11212)
-- **memcached-orangescrum**: Memcached for V2 (port 11213)
-
-### Storage & Infrastructure
-
-- **minio**: S3-compatible object storage (API: 9000, Console: 9001)
-- **traefik**: Reverse proxy with automatic SSL (ports 80, 443)
-- **mailhog**: SMTP server for testing (SMTP: 1025, Web: 8025)
-- **browser**: Selenium Chrome with VNC (WebDriver: 4444, VNC: 5900, noVNC: 7900)
-
-## Environment Configuration
-
-Each application has its own environment file:
-
-```plaintext
-os-pg/.env          # Durango PG configuration (durango database)
-os-v4/.env          # OrangeScrum V4 configuration (orangescrum database)  
-os-v2/.env          # Orangescrum V2 configuration (MySQL)
-.env                # Port mappings and infrastructure settings
-```
-
-## Port Mappings
-
-All ports are bound to `127.0.0.1` for security and configurable via `.env`:
-
-```bash
-TRAEFIK_HTTP_PORT=80          # HTTP (redirects to HTTPS)
-TRAEFIK_HTTPS_PORT=443        # HTTPS
-TRAEFIK_DASHBOARD_PORT=8080   # Dashboard (localhost only)
-MYSQL_PORT=3307               # MySQL direct access
-POSTGRES_PORT=5433            # PostgreSQL direct access
-REDIS_PORT=6380               # Redis direct access
-MINIO_API_PORT=9000           # MinIO S3 API
-MINIO_CONSOLE_PORT=9001       # MinIO Console
-MEMCACHED_DURANGO_PORT=11212  # V4 Memcached
-MEMCACHED_ORANGESCRUM_PORT=11213  # V2 Memcached
-```
-
-## Common Commands
-
-```bash
-# Service Management
-docker compose up -d              # Start all services
-docker compose down               # Stop all services
-docker compose ps                 # List running services
-docker compose logs -f [service]  # Follow logs
-
-# Database Operations
-./setup-v2-database.sh            # Import V2 MySQL database
-./setup-v2-database.sh --force    # Force reset and reimport
-./setup-databases.sh              # Setup V4 PostgreSQL databases
-./setup-databases.sh --force      # Force reset and reimport
-
-# Configuration
-./generate-config.py ossiba.online  # Regenerate all configs
-./generate-certs.sh               # Generate SSL certificates
-./dev-deploy.sh                   # Verify and deploy services
-
-# Individual Services
-docker compose restart traefik    # Restart reverse proxy
-docker compose restart durango-pg # Restart Durango app
-docker compose up -d orangescrum-v4  # Start OrangeScrum V4
-```
-
-## Database Access
-
-### PostgreSQL (port 5433)
-
-```bash
-# Durango database
-psql -h localhost -p 5433 -U durango -d durango
-
-# OrangeScrum database  
-psql -h localhost -p 5433 -U orangescrum -d orangescrum
-```
-
-### MySQL (port 3307)
-
-```bash
-mysql -h 127.0.0.1 -P 3307 -u osuser -p orangescrum
-```
-
-## Development Workflow
-
-1. **Change domain**: Edit `generate-config.py ossiba.online` with new domain
-2. **Regenerate SSL**: Run `./generate-certs.sh`
-3. **Apply changes**: Run `docker compose up -d`
-4. **Reset database**: Use `--force` flag with setup scripts
-
-## Troubleshooting
-
-### Service won't start
-
-```bash
-docker compose logs -f [service-name]
-docker compose restart [service-name]
-```
-
-### SSL certificate issues
-
-```bash
-./generate-certs.sh              # Regenerate certificates
-./php-trust-certs.sh             # Trust in PHP containers
-```
-
-### Database connection issues
-
-```bash
-docker compose ps                # Check service health
-./setup-databases.sh             # Re-run database setup
-```
-
-### Port conflicts
-
-Edit `.env` and change conflicting ports, then:
-
-```bash
-docker compose down
-docker compose up -d
-```
-
-## Network Architecture
-
-- **traefik-network** (172.25.0.0/16): Public-facing services
-- **durango-backend** (172.26.0.0/16): V4 app internal network
-- **orangescrum-backend** (172.27.0.0/16): V2 app internal network
+Exact port values are auto-generated per domain (unique offset to avoid conflicts). Check `.env` after running `generate-config.py`.
 
 ## File Structure
 
-```plaintext
-project-durango/
-├── apps/                      # Application code (gitignored)
-│   ├── durango-pg/           # Durango PG app
-│   ├── orangescrum-v4/       # OrangeScrum V4 app
-│   └── orangescrum/          # OrangeScrum V2 app
-├── config/                    # Apache & PHP configs
-├── certs/                     # SSL certificates
-├── os-pg/.env                # Durango PG environment
-├── os-v4/.env                # OrangeScrum V4 environment
-├── os-v2/.env                # OrangeScrum V2 environment
-├── postgres-init/            # PostgreSQL init scripts
-├── templates/                # Jinja2 configuration templates
-├── traefik/                  # Traefik dynamic configuration
-├── docker-compose.yml        # Main service definitions
-├── docker-compose.override.yml  # Port mappings (optional)
-├── generate-config.py        # Configuration generator
-├── setup.sh                  # Complete setup script
-└── dev-deploy.sh            # Deployment verification script
+```
+├── apps/                          # Application source code
+│   ├── orangescrum-v4/            # V4 app repo
+│   ├── durango-pg/                # Selfhosted app repo
+│   ├── orangescrum/               # V2 app
+│   └── worktrees/                 # Git worktrees (per-branch instances)
+│       ├── orangescrum-v4/
+│       │   └── enhance-kanban-ui/ # Worktree for branch
+│       └── durango-pg/
+├── instances/                     # Dynamic instance configs (generated)
+│   ├── registry.json              # Instance registry
+│   ├── v4-main/                   # Per-instance compose + .env
+│   └── sh-main/
+├── traefik/                       # Traefik routing configs
+│   ├── dynamic.yml                # Base routes (V2, mail, etc.)
+│   ├── instance-v4-main.yml       # Auto-generated per instance
+│   └── instance-sh-main.yml
+├── templates/                     # Jinja2 templates (source of truth)
+├── controller/                    # Web controller (FastAPI + Vue)
+│   ├── backend/                   # Python API
+│   └── frontend/                  # Vue 3 SPA
+├── config/                        # Apache/PHP/dnsmasq configs
+├── certs/                         # SSL certificates
+├── entrypoints/                   # Container init scripts
+├── generate-config.py             # Config generator + instance manager
+├── setup.sh                       # One-command setup
+└── build-images.sh                # Docker image builder
 ```
 
-## MinIO S3 Storage
+## Docker Images
 
-Default credentials (change in `.env`):
+| Image | Size | Contents |
+|-------|------|----------|
+| `orangescrum-base` | ~380 MB | Ubuntu 22.04, Apache, PHP PPA |
+| `orangescrum-php8.3` | ~714 MB | PHP 8.3, Node 20, PostgreSQL client, Composer |
+| `orangescrum-php7.2` | ~558 MB | PHP 7.2, MySQL client, Composer 2.2 |
 
-```env
-MINIO_ROOT_USER=minioadmin
-MINIO_ROOT_PASSWORD=minioadmin
+Images are optimized: single apt layers, proper cleanup, no unnecessary packages. Code is volume-mounted, not baked in.
+
+## Configuration
+
+### Regenerate configs (preserves instances)
+
+```bash
+./generate-config.py user196.online
 ```
 
-Access:
+### Full reset (removes everything)
 
-- Console UI: <https://console.ossiba.online>
-- S3 API: <https://storage.ossiba.online>
+```bash
+./generate-config.py --reset
+```
 
-## Chrome Browser Testing
+This stops all instances, removes worktrees, clears the registry, and deletes all generated files.
 
-VNC access for browser automation:
+### HTTPS
 
-- **WebDriver**: <http://localhost:4444>
-- **VNC**: vnc://localhost:5900
-- **noVNC Web**: <http://localhost:7900>
+HTTPS is enabled by default. Disable with:
 
-## License
+```bash
+./generate-config.py user196.online --no-https
+```
 
-See individual application licenses in their respective directories.
+### Interactive mode
+
+```bash
+./generate-config.py user196.online -i
+```
+
+Prompts for which services to enable (V2, Redis vs Memcached, MailHog, MinIO).
+
+## Troubleshooting
+
+```bash
+# Check service status
+docker compose ps
+
+# Check instance container logs
+./generate-config.py instance logs --name v4-main -f
+
+# Shell into a container
+./generate-config.py instance shell --name v4-main
+
+# Rebuild images after Dockerfile changes
+./build-images.sh all
+
+# Regenerate SSL certificates
+./generate-certs.sh
+
+# Restart a base service
+docker compose restart traefik
+
+# Browser can't resolve domains
+docker compose restart dns browser
+```
