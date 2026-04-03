@@ -213,6 +213,7 @@ services:
       - .:/project:rw
     environment:
       - PROJECT_ROOT=/project
+      - HOST_PROJECT_ROOT={{ project_root }}
       - DOMAIN={{ domain }}
       - CONTROLLER_USER=${CONTROLLER_USER:-admin}
       - CONTROLLER_PASS=${CONTROLLER_PASS}

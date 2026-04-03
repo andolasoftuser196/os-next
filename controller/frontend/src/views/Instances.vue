@@ -31,7 +31,7 @@
           <label style="display: block; font-size: 12px; color: #8b949e; margin-bottom: 4px">Source Path</label>
           <input v-model="form.source" placeholder="(default)" style="width: 200px" />
         </div>
-        <button class="btn btn-primary" @click="create" :disabled="creating">
+        <button class="btn btn-primary" @click="create" :disabled="creating || !form.name.trim()">
           {{ creating ? 'Creating...' : 'Create' }}
         </button>
         <button class="btn" @click="showCreate = false">Cancel</button>

@@ -28,6 +28,9 @@ from pydantic import BaseModel, field_validator
 
 # Paths
 PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "/project"))
+# HOST_PROJECT_ROOT is the real host path for Docker volume mounts
+# (PROJECT_ROOT is the container-internal path, e.g. /project)
+HOST_PROJECT_ROOT = os.environ.get("HOST_PROJECT_ROOT", str(PROJECT_ROOT))
 REGISTRY_FILE = PROJECT_ROOT / "instances" / "registry.json"
 TEMPLATES_DIR = PROJECT_ROOT / "templates"
 TRAEFIK_DIR = PROJECT_ROOT / "traefik"
@@ -374,7 +377,8 @@ def api_create_instance(req: CreateInstanceRequest, user: str = Depends(verify_c
         "instance_name": name, "instance_type": instance_type,
         "instance_subdomain": subdomain, "domain": d,
         "domain_prefix": prefix, "enable_https": enable_https,
-        "source_path": source_abs, "project_root": str(PROJECT_ROOT),
+        "source_path": source_abs.replace(str(PROJECT_ROOT), HOST_PROJECT_ROOT),
+        "project_root": HOST_PROJECT_ROOT,
         "db_name": db_name, "db_user": db_user, "db_password": db_password,
         "security_salt": security_salt, "cache_engine": detect_cache_engine(),
         "generated_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -482,10 +486,13 @@ def api_start_instance(name: str, user: str = Depends(verify_credentials)):
     compose_file = inst_dir / "docker-compose.yml"
     if not compose_file.exists():
         raise HTTPException(404, "Compose file not found")
-    subprocess.run(
+    result = subprocess.run(
         ["docker", "compose", "-f", str(compose_file), "up", "-d"],
-        check=True, capture_output=True, text=True, cwd=str(PROJECT_ROOT),
+        capture_output=True, text=True, cwd=str(PROJECT_ROOT),
     )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "Unknown error").strip()
+        raise HTTPException(500, f"Failed to start instance: {detail}")
     registry["instances"][name]["status"] = "running"
     save_registry(registry)
     return {"message": f"Instance '{name}' started"}
@@ -500,10 +507,13 @@ def api_stop_instance(name: str, user: str = Depends(verify_credentials)):
     compose_file = inst_dir / "docker-compose.yml"
     if not compose_file.exists():
         raise HTTPException(404, "Compose file not found")
-    subprocess.run(
+    result = subprocess.run(
         ["docker", "compose", "-f", str(compose_file), "down"],
-        check=True, capture_output=True, text=True, cwd=str(PROJECT_ROOT),
+        capture_output=True, text=True, cwd=str(PROJECT_ROOT),
     )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "Unknown error").strip()
+        raise HTTPException(500, f"Failed to stop instance: {detail}")
     registry["instances"][name]["status"] = "stopped"
     save_registry(registry)
     return {"message": f"Instance '{name}' stopped"}

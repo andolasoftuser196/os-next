@@ -24,26 +24,35 @@ Docker-based developer environment with dynamic instance management. Run multipl
 
 **Dynamic instances** (on demand): Each gets its own container, database, Redis prefix, Traefik route, and optionally its own git branch via worktrees.
 
+## Prerequisites
+
+- Docker & Docker Compose
+- Python 3 with `python3-venv`
+
 ## Quick Start
 
 ```bash
-# 1. Generate configs for your domain
+# 1. Set up Python virtual environment
+./setup-venv.sh
+source .venv/bin/activate
+
+# 2. Generate configs for your domain
 ./generate-config.py user196.online
 
-# 2. Generate SSL certificates
+# 3. Generate SSL certificates
 ./generate-certs.sh
 
-# 3. Build Docker images
+# 4. Build Docker images
 ./build-images.sh all
 
-# 4. Start base services
+# 5. Start base services
 docker compose up -d
 
-# 5. Create your first instances
+# 6. Create your first instances
 ./generate-config.py instance create --name v4-main --type v4 --subdomain v4
 ./generate-config.py instance create --name sh-main --type selfhosted --subdomain selfhosted
 
-# 6. Access via VNC browser
+# 7. Access via VNC browser
 # Open http://localhost:3000 in your browser
 ```
 
