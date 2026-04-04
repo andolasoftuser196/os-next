@@ -270,7 +270,8 @@ def generate_configurations(domain, dry_run=False, interactive=False, enable_htt
         'memcached_durango_port': base_memcached_durango,
         'memcached_orangescrum_port': base_memcached_orangescrum,
         'enable_https': enable_https,
-        'node_version': '20'
+        'node_version': '20',
+        'project_root': str(Path.cwd()),
     }
     # Default services selection
     # If interactive mode: start with None (ask user)

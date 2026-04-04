@@ -363,7 +363,7 @@ def api_create_instance(req: CreateInstanceRequest, user: str = Depends(verify_c
 
     # Sanitized database identifiers
     db_name = safe_sql_identifier(f"{instance_type}_{name}")
-    db_user = os.environ.get("DEFAULT_V4_DB_USER", "appuser") if instance_type == "v4" else os.environ.get("DEFAULT_SELFHOSTED_DB_USER", "appuser")
+    db_user = os.environ.get("DEFAULT_V4_DB_USER", "orangescrum") if instance_type == "v4" else os.environ.get("DEFAULT_SELFHOSTED_DB_USER", "durango")
     db_password = db_user
 
     security_salt = hashlib.sha256(secrets.token_bytes(64)).hexdigest()
@@ -468,6 +468,23 @@ def api_destroy_instance(name: str, drop_db: bool = Query(False), user: str = De
                               f"DROP DATABASE IF EXISTS {db_name};"])
             except Exception:
                 pass
+
+    # Clean up git worktree if this instance used one
+    worktree_path = inst.get("worktree_path")
+    if worktree_path:
+        wt = Path(worktree_path)
+        base_source = DEFAULT_SOURCE_PATHS.get(inst["type"], DEFAULT_SOURCE_PATHS["v4"])
+        source_repo = str((PROJECT_ROOT / base_source).resolve())
+        try:
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str((PROJECT_ROOT / wt).resolve())],
+                cwd=source_repo, check=True, capture_output=True, text=True,
+            )
+        except Exception:
+            # Fallback: remove the directory directly
+            full_wt = PROJECT_ROOT / wt
+            if full_wt.exists():
+                shutil.rmtree(full_wt)
 
     if inst_dir.exists():
         shutil.rmtree(inst_dir)

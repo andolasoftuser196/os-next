@@ -56,12 +56,6 @@ docker compose up -d
 # Open http://localhost:3000 in your browser
 ```
 
-Or use the one-command setup:
-
-```bash
-./setup.sh user196.online
-```
-
 ## Instance Management
 
 ### Create
@@ -190,9 +184,8 @@ Exact port values are auto-generated per domain (unique offset to avoid conflict
 ├── config/                        # Apache/PHP/dnsmasq configs
 ├── certs/                         # SSL certificates
 ├── entrypoints/                   # Container init scripts
-├── generate-config.py             # Config generator + instance manager
-├── setup.sh                       # One-command setup
-└── build-images.sh                # Docker image builder
+├── generate-config.py             # Config generator + instance manager (single source of truth)
+└── build-images.sh                # Docker image builder (generated)
 ```
 
 ## Docker Images
