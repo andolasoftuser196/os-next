@@ -12,6 +12,11 @@ set +e
 
 echo "Starting OrangeScrum V4 Development Environment..."
 
+# Trust SSL certificates (if present)
+if [ -x /usr/local/bin/php-trust-certs.sh ]; then
+    /usr/local/bin/php-trust-certs.sh
+fi
+
 APP_DIR="/var/www/html"
 
 # ============================================
@@ -109,6 +114,17 @@ if [ -n "$DB_HOST" ]; then
     echo "✓ PostgreSQL database setup completed"
 else
     echo "⚠ DB_HOST not set, skipping database initialization"
+fi
+
+# ============================================
+# Install Dependencies
+# ============================================
+if [ ! -f "$APP_DIR/vendor/autoload.php" ]; then
+    echo "vendor/ missing — running composer install as appuser..."
+    su -s /bin/sh appuser -c "cd $APP_DIR && composer install --no-interaction --prefer-dist --optimize-autoloader"
+    echo "✓ Composer dependencies installed"
+else
+    echo "✓ vendor/ already present"
 fi
 
 # ============================================

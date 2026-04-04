@@ -34,15 +34,7 @@ services:
       - SSL_CERT_FILE=/usr/local/share/ca-certificates/{{ domain }}.crt
       - CURL_CA_BUNDLE=/usr/local/share/ca-certificates/{{ domain }}.crt
 {% endif %}
-    command: >
-      sh -c '
-        /usr/local/bin/php-trust-certs.sh &&
-        if [ "$COMPOSER_INSTALL_ON_START" = "true" ] && [ ! -f /var/www/html/vendor/autoload.php ]; then
-          echo "vendor/ missing — running composer install..." &&
-          cd /var/www/html &&
-          composer install --no-interaction --prefer-dist --optimize-autoloader;
-        fi &&
-        apache2ctl -D FOREGROUND'
+    command: ["/usr/local/bin/orangescrum-v4.sh"]
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost/"]
       interval: 30s

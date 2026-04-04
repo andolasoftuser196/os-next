@@ -47,4 +47,4 @@ RUN chmod +x /usr/local/bin/php-trust-certs.sh /usr/local/bin/orangescrum-v4.sh 
 
 WORKDIR /var/www/html
 
-CMD ["sh", "-c", "/usr/local/bin/php-trust-certs.sh && apache2ctl -D FOREGROUND"]
+CMD ["/usr/local/bin/orangescrum-v4.sh"]

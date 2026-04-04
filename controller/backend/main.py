@@ -364,8 +364,8 @@ def api_create_instance(req: CreateInstanceRequest, user: str = Depends(verify_c
 
     # Sanitized database identifiers
     db_name = safe_sql_identifier(f"{instance_type}_{name}")
-    db_user = os.environ.get("DEFAULT_V4_DB_USER", "orangescrum") if instance_type == "v4" else os.environ.get("DEFAULT_SELFHOSTED_DB_USER", "durango")
-    db_password = db_user
+    db_user = 'postgres'
+    db_password = 'postgres'
 
     security_salt = hashlib.sha256(secrets.token_bytes(64)).hexdigest()
 
@@ -572,7 +572,7 @@ def api_db_snapshot(name: str, user: str = Depends(verify_credentials)):
         raise HTTPException(404, f"Instance '{name}' not found")
     inst = registry["instances"][name]
     db_name = safe_sql_identifier(inst.get("db_name", ""))
-    db_user = inst.get("db_user", "orangescrum")
+    db_user = inst.get("db_user", "postgres")
     prefix = get_domain_prefix()
     pg_container = f"{prefix}-postgres16"
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -607,7 +607,7 @@ def api_db_restore(name: str, snapshot: str = Query(...), user: str = Depends(ve
         raise HTTPException(400, "Invalid snapshot path")
     inst = registry["instances"][name]
     db_name = safe_sql_identifier(inst.get("db_name", ""))
-    db_user = inst.get("db_user", "orangescrum")
+    db_user = inst.get("db_user", "postgres")
     prefix = get_domain_prefix()
     pg_container = f"{prefix}-postgres16"
     try:
@@ -689,13 +689,20 @@ async def ws_logs(websocket: WebSocket, name: str):
         await websocket.close()
         return
 
+    log_generator = container.logs(stream=True, follow=True, tail=100)
+    loop = asyncio.get_event_loop()
     try:
-        for log in container.logs(stream=True, follow=True, tail=100):
-            await websocket.send_text(log.decode(errors="replace"))
+        while True:
+            chunk = await loop.run_in_executor(None, next, log_generator, None)
+            if chunk is None:
+                break
+            await websocket.send_text(chunk.decode(errors="replace"))
     except WebSocketDisconnect:
         pass
     except Exception:
         await websocket.close()
+    finally:
+        log_generator.close()
 
 
 # ─── WebSocket: Web Terminal ──────────────────────────────────────────────────

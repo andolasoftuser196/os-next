@@ -774,16 +774,25 @@ def instance_create(args):
                 ['git', 'fetch', '--all'],
                 cwd=source_repo, capture_output=True, text=True
             )
-            # Create worktree on the specified branch
-            subprocess.run(
+            # Try existing branch first, fall back to creating a new branch from main
+            result = subprocess.run(
                 ['git', 'worktree', 'add', str(worktree_path.resolve()), branch],
-                cwd=source_repo, check=True, capture_output=True, text=True
+                cwd=source_repo, capture_output=True, text=True
             )
+            if result.returncode != 0:
+                # Branch doesn't exist — create it from main
+                result = subprocess.run(
+                    ['git', 'worktree', 'add', '-b', branch, str(worktree_path.resolve()), 'main'],
+                    cwd=source_repo, capture_output=True, text=True
+                )
+                if result.returncode != 0:
+                    print_colored(f"Error: Could not create worktree: {result.stderr.strip()}", Colors.RED)
+                    print_colored(f"  Available branches: git -C {source} branch -a", Colors.YELLOW)
+                    sys.exit(1)
+                print_colored(f"  Created new branch '{branch}' from main", Colors.GREEN)
             print_colored(f"  Worktree created at {worktree_path} (branch: {branch})", Colors.GREEN)
         except subprocess.CalledProcessError as e:
             print_colored(f"Error: Could not create worktree: {e.stderr.strip()}", Colors.RED)
-            print_colored(f"  Make sure branch '{branch}' exists in {source}", Colors.YELLOW)
-            print_colored(f"  Available branches: git -C {source} branch -a", Colors.YELLOW)
             sys.exit(1)
 
         # Use the worktree as the source for this instance
@@ -793,12 +802,8 @@ def instance_create(args):
 
     # Database naming
     db_name = f"{instance_type}_{name}".replace('-', '_')
-    db_user = instance_type.replace('-', '_')
-    if instance_type == 'v4':
-        db_user = 'orangescrum'
-    elif instance_type == 'selfhosted':
-        db_user = 'durango'
-    db_password = db_user  # Dev environment default
+    db_user = 'postgres'
+    db_password = 'postgres'
 
     # Generate security salt
     try:
@@ -1185,7 +1190,7 @@ def instance_db_snapshot(args):
     ctx = get_project_context()
     pg_container = f"{ctx['domain_prefix']}-postgres16"
     db_name = inst['db_name']
-    db_user = inst.get('db_user', 'orangescrum')
+    db_user = inst.get('db_user', 'postgres')
 
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     output_file = args.output or f"snapshots/{db_name}_{timestamp}.sql.gz"
@@ -1236,7 +1241,7 @@ def instance_db_restore(args):
     ctx = get_project_context()
     pg_container = f"{ctx['domain_prefix']}-postgres16"
     db_name = inst['db_name']
-    db_user = inst.get('db_user', 'orangescrum')
+    db_user = inst.get('db_user', 'postgres')
 
     print_header(f"Database Restore: {name}")
     print(f"Database: {db_name}")
@@ -1326,6 +1331,20 @@ def handle_reset():
     else:
         print_colored("No generated config files found to backup.", Colors.YELLOW)
 
+    # Stop base services and remove volumes (before deleting compose file)
+    import subprocess
+    compose_file = Path('docker-compose.yml')
+    if compose_file.exists():
+        print_colored("Stopping base services and removing volumes...", Colors.BLUE)
+        try:
+            subprocess.run(
+                ['docker', 'compose', 'down', '-v'],
+                capture_output=True, text=True
+            )
+            print_colored("  Base services stopped, volumes removed.", Colors.GREEN)
+        except Exception:
+            print_colored("  Warning: Could not stop base services.", Colors.YELLOW)
+
     files_to_remove = [
         '.env',
         'docker-compose.yml',
@@ -1359,7 +1378,6 @@ def handle_reset():
             print_colored(f"Could not remove {f}: {e}", Colors.YELLOW)
 
     # Stop and remove all instances
-    import subprocess
     registry = load_registry()
     for inst_name, inst in registry.get('instances', {}).items():
         inst_dir = Path(f'instances/{inst_name}')

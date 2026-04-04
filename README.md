@@ -295,3 +295,30 @@ docker compose restart traefik
 # Browser can't resolve domains
 docker compose restart dns browser
 ```
+
+### Branch instances: missing config files
+
+Git worktrees don't copy gitignored files. If a branch instance fails with config errors (e.g., "datasource not found"), copy the missing files from the main app source to the worktree:
+
+```bash
+# Copy gitignored config files from main app to worktree
+SRC=apps/<app-repo>
+WT=apps/worktrees/<app-repo>/<branch-dir>
+
+# Single file
+cp $SRC/config/<file> $WT/config/
+
+# All gitignored config files
+diff <(cd $SRC && git ls-files -i --exclude-standard config/) /dev/null | \
+  sed 's/^< //' | while read f; do [ -f "$SRC/$f" ] && cp "$SRC/$f" "$WT/$f"; done
+```
+
+### Instance container unhealthy
+
+The healthcheck has a 60-second start period. If the container stays unhealthy:
+
+```bash
+docker logs <container-name>
+```
+
+Common causes: `composer install` still running (wait), missing config files (see above), database not ready (`docker compose exec postgres16 pg_isready`).
