@@ -847,6 +847,7 @@ def instance_create(args):
         'cache_engine': ctx['cache_engine'],
         'generated_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'node_version': '20',
+        'restricted': getattr(args, 'restricted', False),
     }
 
     # Ensure shared.env exists
@@ -948,7 +949,8 @@ def instance_create(args):
         'container_name': f"{domain_prefix}-{name}",
         'source_path': source,
         'created_at': datetime.now().isoformat(),
-        'status': 'running'
+        'status': 'running',
+        'restricted': getattr(args, 'restricted', False),
     }
     if branch:
         inst_record['branch'] = branch
@@ -1470,6 +1472,7 @@ def build_instance_parser():
     p.add_argument('--branch', help='Git branch — creates a worktree so this instance runs its own branch')
     p.add_argument('--source', help='Path to app source (default: apps/orangescrum-v4 or apps/durango-pg)')
     p.add_argument('--from-snapshot', help='Restore this database snapshot instead of starting empty')
+    p.add_argument('--restricted', action='store_true', help='Mark instance as restricted (IP-whitelisted, hidden from MCP tools)')
 
     # list
     sub.add_parser('list', help='List all instances')

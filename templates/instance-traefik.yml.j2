@@ -1,6 +1,7 @@
 # Auto-generated Traefik routing for instance: {{ instance_name }}
 # Type: {{ instance_type }}
 # Subdomain: {{ instance_subdomain }}.{{ domain }}
+# Restricted: {{ restricted | default(false) }}
 # Generated: {{ generated_date }}
 
 http:
@@ -14,6 +15,21 @@ http:
       priority: 100
 {% if enable_https %}
       tls: {}
+{% endif %}
+{% if restricted | default(false) %}
+      middlewares:
+        - ip-whitelist-{{ instance_name }}
+{% endif %}
+
+{% if restricted | default(false) %}
+  middlewares:
+    ip-whitelist-{{ instance_name }}:
+      ipAllowList:
+        sourceRange:
+          - "127.0.0.1/32"
+          - "172.16.0.0/12"
+          - "192.168.0.0/16"
+          - "10.0.0.0/8"
 {% endif %}
 
   services:

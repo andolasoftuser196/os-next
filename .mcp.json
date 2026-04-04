@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "dev-controller": {
+      "command": ".venv/bin/python",
+      "args": ["controller/mcp-server.py"]
+    }
+  }
+}

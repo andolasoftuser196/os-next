@@ -27,6 +27,10 @@ services:
     env_file:
       - {{ project_root }}/instances/shared.env
       - ./.env
+      - path: {{ project_root }}/instances/secrets.env
+        required: false
+      - path: ./secrets.env
+        required: false
       - path: ./overrides.env
         required: false
 {% if enable_https %}
