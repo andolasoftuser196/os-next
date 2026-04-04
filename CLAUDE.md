@@ -105,12 +105,14 @@ The controller runs inside Docker. It uses the Docker SDK to manage sibling cont
 - `controller/backend/routes/monitoring.py` — status, stats, logs
 - `controller/backend/routes/websockets.py` — live log streaming, web terminal
 
-Key paths:
+Key paths and design:
 
 - `PROJECT_ROOT`: container-internal path (`/project`)
-- `HOST_PROJECT_ROOT`: real host path, used for Docker volume mounts
+- `HOST_PROJECT_ROOT`: real host path, used for Docker volume mounts and git worktree metadata rewriting
+- Controller runs as non-root `appuser` with Docker socket access via `docker_host` group
 - Auth: HTTP Basic from `CONTROLLER_USER`/`CONTROLLER_PASS` env vars
 - Frontend is built at image build time and served as static files by FastAPI
+- When creating worktrees, git metadata is rewritten from container paths (`/project/...`) to host paths so `git worktree list` works correctly on the host
 
 ## Instance Isolation Model
 
@@ -118,12 +120,24 @@ Key paths:
 - **Database**: each V4/selfhosted instance gets its own PostgreSQL database
 - **Redis**: shared Redis server, isolated by key prefix per instance
 - **Routing**: Traefik file watcher auto-discovers `traefik/instance-{name}.yml` (priority 100 beats V2 wildcard at 10)
-- **Code**: branch instances use git worktrees at `apps/worktrees/{repo}/{branch}/`
-- **Dependencies**: auto `composer install` on first boot if vendor/ missing; shared download cache at `.composer-cache/`
+- **Code**: branch instances use git worktrees at `apps/worktrees/{repo}/{branch-dir}/` (only created when `--branch` is explicitly provided; without it, instances share the source repo directly)
+- **Dependencies**: auto `composer install` on first boot if vendor/ missing; `composer.lock` is copied from source repo into worktrees to avoid slow `composer update`; shared download cache at `.composer-cache/` (mounted at `/home/appuser/.cache/composer`)
+- **Logs/tmp**: instance `logs/` and `tmp/` use Docker-managed volumes (not written into the source/worktree directory)
+- **Config bootstrap**: entrypoint copies `app_local.example.php` → `app_local.php` if missing (handles fresh worktrees where composer post-install hooks created the wrong config)
 - **Health**: instance containers have curl-based healthchecks; controller UI shows health badges
 - **Env layers**: `instances/shared.env` (project-wide) + `instances/{name}/.env` (unique) + optional `instances/{name}/overrides.env`
 - **DB snapshots**: `snapshots/*.sql.gz` — pg_dump/restore for fast instance provisioning
 - Reserved subdomains: `www`, `app`, `mail`, `traefik`, `storage`, `console`, `old-selfhosted`, `control`
+
+## Testing
+
+```bash
+source .venv/bin/activate
+python -m pytest tests/ -v                                    # Full suite (requires base services running)
+python -m pytest tests/test_controller_api.py::TestBranchIsolation -v  # Branch isolation only
+```
+
+Tests cover: system health, instance CRUD lifecycle, branch worktree isolation (create, code isolation, registry, cleanup), and edge cases. Tests run against the live controller API (`http://127.0.0.1:8900`).
 
 ## OrangeScrum V4 (CakePHP App)
 

@@ -146,7 +146,7 @@ Run multiple branches simultaneously, each with its own isolated environment:
 #   https://fix.user196.online      → fix/issue-456
 ```
 
-Worktrees are stored at `apps/worktrees/<repo>/<branch>/` and cleaned up on destroy. Composer dependencies are auto-installed on first boot if `vendor/` is missing (shared download cache across all instances).
+Worktrees are stored at `apps/worktrees/<repo>/<branch-dir>/` and cleaned up on destroy. `composer.lock` is copied from the source repo so worktrees use fast `composer install` instead of slow `composer update`. Instance `logs/` and `tmp/` use Docker-managed volumes to avoid polluting worktree directories.
 
 ## Database Snapshots
 
@@ -304,19 +304,10 @@ docker compose restart dns browser
 
 ### Branch instances: missing config files
 
-Git worktrees don't copy gitignored files. If a branch instance fails with config errors (e.g., "datasource not found"), copy the missing files from the main app source to the worktree:
+The entrypoint automatically copies `app_local.example.php` → `app_local.php` and other config examples on first boot. If a branch instance still fails with config errors, copy the missing file manually:
 
 ```bash
-# Copy gitignored config files from main app to worktree
-SRC=apps/<app-repo>
-WT=apps/worktrees/<app-repo>/<branch-dir>
-
-# Single file
-cp $SRC/config/<file> $WT/config/
-
-# All gitignored config files
-diff <(cd $SRC && git ls-files -i --exclude-standard config/) /dev/null | \
-  sed 's/^< //' | while read f; do [ -f "$SRC/$f" ] && cp "$SRC/$f" "$WT/$f"; done
+cp apps/<app-repo>/config/<file> apps/worktrees/<app-repo>/<branch-dir>/config/
 ```
 
 ### Instance container unhealthy
@@ -327,4 +318,13 @@ The healthcheck has a 60-second start period. If the container stays unhealthy:
 docker logs <container-name>
 ```
 
-Common causes: `composer install` still running (wait), missing config files (see above), database not ready (`docker compose exec postgres16 pg_isready`).
+Common causes: `composer install` still running (wait for first boot to complete), database not ready (`docker compose exec postgres16 pg_isready`).
+
+## Testing
+
+```bash
+source .venv/bin/activate
+python -m pytest tests/ -v
+```
+
+Requires base services running (`docker compose up -d`). Tests create and destroy real instances against the live controller API.
