@@ -211,7 +211,7 @@ Exact port values are auto-generated per domain (unique offset to avoid conflict
 │       │   └── enhance-kanban-ui/ # Worktree for branch
 │       └── durango-pg/
 ├── instances/                     # Dynamic instance configs (generated)
-│   ├── registry.json              # Instance registry
+│   ├── registry.db                # Instance registry (SQLite)
 │   ├── v4-main/                   # Per-instance compose + .env
 │   └── sh-main/
 ├── traefik/                       # Traefik routing configs
@@ -220,12 +220,18 @@ Exact port values are auto-generated per domain (unique offset to avoid conflict
 │   └── instance-sh-main.yml
 ├── templates/                     # Jinja2 templates (source of truth)
 ├── controller/                    # Web controller (FastAPI + Vue)
-│   ├── backend/                   # Python API
+│   ├── backend/                   # Python API (modular: auth, models, helpers, routes/)
 │   └── frontend/                  # Vue 3 SPA
 ├── config/                        # Apache/PHP/dnsmasq configs
 ├── certs/                         # SSL certificates
 ├── entrypoints/                   # Container init scripts
-├── generate-config.py             # Config generator + instance manager (single source of truth)
+├── lib/                           # Shared Python modules for generate-config.py
+│   ├── config_generator.py        # Template rendering, backups, reset
+│   ├── instance_manager.py        # Instance create/destroy/start/stop/list
+│   ├── database.py                # db-setup, snapshot, restore
+│   ├── registry.py                # SQLite-backed instance registry
+│   └── output.py                  # Terminal colors and formatting
+├── generate-config.py             # CLI entry point (delegates to lib/)
 └── build-images.sh                # Docker image builder (generated)
 ```
 

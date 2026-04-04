@@ -205,11 +205,15 @@ services:
     build:
       context: ./controller
       dockerfile: Dockerfile
+      args:
+        BUILDER_UID: {{ builder_uid }}
+        BUILDER_GID: {{ builder_uid }}
+        DOCKER_GID: ${DOCKER_GID:-986}
     image: orangescrum-controller:{{ domain | replace('.', '-') }}
     container_name: {{ domain_prefix }}-controller
     restart: unless-stopped
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/run/docker.sock:/var/run/docker.sock
       - .:/project:rw
     environment:
       - PROJECT_ROOT=/project

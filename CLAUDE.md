@@ -28,12 +28,15 @@ VNC Browser (localhost:3000)
 
 | Component | Location | Tech |
 |-----------|----------|------|
-| Config generator / instance manager | `generate-config.py` (Python, ~1400 lines) | Jinja2 templates → configs |
+| CLI entry point | `generate-config.py` | Delegates to `lib/` modules |
+| Config generation | `lib/config_generator.py` | Jinja2 template rendering, backups, reset |
+| Instance management | `lib/instance_manager.py` | Create, destroy, start, stop, list |
+| Database operations | `lib/database.py` | Migrations, snapshots, restore |
+| Instance registry | `lib/registry.py` → `instances/registry.db` | SQLite (WAL mode), auto-migrates from JSON |
 | Jinja2 templates (source of truth) | `templates/*.j2` | All generated files come from here |
-| Controller backend | `controller/backend/main.py` | FastAPI (Python 3.11), Docker SDK |
+| Controller backend | `controller/backend/` | FastAPI (Python 3.11), modular routes |
 | Controller frontend | `controller/frontend/` | Vue 3 + Vite SPA |
 | Instance configs (generated) | `instances/{name}/` | docker-compose.yml + .env per instance |
-| Instance registry | `instances/registry.json` | JSON, tracks all instances |
 | Traefik routing (generated) | `traefik/instance-{name}.yml` | Auto-discovered by Traefik file watcher |
 | Container entrypoints | `entrypoints/` | Bash init scripts |
 | OrangeScrum V4 | `apps/orangescrum-v4/` | CakePHP 4.6 + PostgreSQL |
@@ -77,13 +80,33 @@ docker compose up -d                               # Start base services
 
 ## How Config Generation Works
 
-`generate-config.py` renders Jinja2 templates from `templates/` into their final locations. The domain determines a unique port offset (hash-based) to avoid conflicts. Instance creation generates per-instance compose files, env files, Traefik routes, and Apache configs, then registers the instance in `instances/registry.json`.
+`generate-config.py` is a thin CLI entry point that delegates to modules in `lib/`:
+
+- `lib/config_generator.py` — renders Jinja2 templates from `templates/` into their final locations
+- `lib/instance_manager.py` — instance create/destroy/start/stop/list/logs/shell
+- `lib/database.py` — db-setup (migrations + seeds), db-snapshot, db-restore
+- `lib/registry.py` — SQLite-backed instance registry (`instances/registry.db`, WAL mode, atomic transactions). Auto-migrates from legacy `registry.json` on first load.
+- `lib/output.py` — terminal colors and formatting
+
+The domain determines a unique port offset (hash-based) to avoid conflicts. Instance creation generates per-instance compose files, env files, Traefik routes, and Apache configs, then registers the instance in the SQLite registry.
 
 **Template → output mapping matters**: when changing generated files (`.env`, `docker-compose.yml`, Traefik YAML, Dockerfiles, Apache configs, `build-images.sh`, `generate-certs.sh`), edit the corresponding `templates/*.j2` template, not the generated file.
 
 ## Controller Architecture
 
-The controller runs inside Docker. It uses the Docker SDK to manage sibling containers (not docker-in-docker). Key paths:
+The controller runs inside Docker. It uses the Docker SDK to manage sibling containers (not docker-in-docker). The backend is modular:
+
+- `controller/backend/main.py` — FastAPI app setup, CORS, router wiring, frontend serving
+- `controller/backend/auth.py` — HTTP Basic auth dependency
+- `controller/backend/models.py` — Pydantic request/response models
+- `controller/backend/helpers.py` — Docker client, SQLite registry, domain detection, sanitization
+- `controller/backend/routes/instances.py` — CRUD, start/stop
+- `controller/backend/routes/database.py` — db-setup, snapshot, restore
+- `controller/backend/routes/monitoring.py` — status, stats, logs
+- `controller/backend/routes/websockets.py` — live log streaming, web terminal
+
+Key paths:
+
 - `PROJECT_ROOT`: container-internal path (`/project`)
 - `HOST_PROJECT_ROOT`: real host path, used for Docker volume mounts
 - Auth: HTTP Basic from `CONTROLLER_USER`/`CONTROLLER_PASS` env vars

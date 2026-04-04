@@ -12,7 +12,16 @@ RUN npm run build
 FROM python:3.11-alpine
 WORKDIR /app
 
-RUN apk add --no-cache docker-cli docker-cli-compose git
+ARG BUILDER_UID=1000
+ARG BUILDER_GID=1000
+ARG DOCKER_GID=986
+
+RUN apk add --no-cache docker-cli docker-cli-compose git shadow \
+    && addgroup -g $DOCKER_GID docker_host \
+    && addgroup -g $BUILDER_GID appgroup 2>/dev/null || true \
+    && adduser -D -u $BUILDER_UID -G appgroup -s /bin/sh appuser \
+    && addgroup appuser docker_host \
+    && apk del shadow
 
 # Python deps (changes rarely)
 COPY backend/requirements.txt .
@@ -28,4 +37,5 @@ ENV PROJECT_ROOT=/project
 
 EXPOSE 8900
 
+USER appuser
 CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8900"]

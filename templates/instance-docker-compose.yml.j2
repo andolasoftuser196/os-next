@@ -18,16 +18,18 @@ services:
     working_dir: /var/www/html
     volumes:
       - {{ source_path }}:/var/www/html
+      - {{ instance_name }}-logs:/var/www/html/logs
+      - {{ instance_name }}-tmp:/var/www/html/tmp
       - {{ project_root }}/config/instance-apache.conf:/etc/apache2/sites-available/000-default.conf
       - {{ project_root }}/config/php-custom-limits.ini:/etc/php/8.3/apache2/conf.d/99-custom-limits.ini
-      - {{ project_root }}/.composer-cache:/root/.cache/composer
+      - {{ project_root }}/.composer-cache:/home/appuser/.cache/composer
 {% if enable_https %}
       - {{ project_root }}/certs/{{ domain }}.crt:/usr/local/share/ca-certificates/{{ domain }}.crt:ro
 {% endif %}
     env_file:
-      - {{ project_root }}/instances/shared.env
+      - ../shared.env
       - ./.env
-      - path: {{ project_root }}/instances/secrets.env
+      - path: ../secrets.env
         required: false
       - path: ./secrets.env
         required: false
@@ -48,6 +50,10 @@ services:
     networks:
       traefik-network:
       durango-backend:
+
+volumes:
+  {{ instance_name }}-logs:
+  {{ instance_name }}-tmp:
 
 networks:
   traefik-network:

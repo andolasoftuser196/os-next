@@ -139,6 +139,14 @@ fi
 
 cd "$APP_DIR"
 
+# Copy app_local configuration (created by composer post-install, but missing in fresh worktrees)
+if [ ! -f "$APP_DIR/config/app_local.php" ] && [ -f "$APP_DIR/config/app_local.example.php" ]; then
+    cp "$APP_DIR/config/app_local.example.php" "$APP_DIR/config/app_local.php"
+    echo "  ✓ app_local.php configuration ready (from example)"
+else
+    echo "  ℹ app_local.php already exists or example not found"
+fi
+
 # Copy Redis cache configuration (default for production)
 if [ ! -f "$APP_DIR/config/cache_redis.php" ] && [ -f "$APP_DIR/config/cache_redis.example.php" ]; then
     cp "$APP_DIR/config/cache_redis.example.php" "$APP_DIR/config/cache_redis.php"
