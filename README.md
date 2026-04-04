@@ -74,6 +74,10 @@ docker compose up -d
 # Instance from a custom source path
 ./generate-config.py instance create --name v4-custom --type v4 \
   --subdomain custom --source ./apps/my-fork
+
+# Instance with a pre-populated database (from a snapshot)
+./generate-config.py instance create --name v4-demo --type v4 \
+  --subdomain demo --from-snapshot snapshots/v4_main_20260404.sql.gz
 ```
 
 ### Lifecycle
@@ -84,6 +88,9 @@ docker compose up -d
 ./generate-config.py instance start --name v4-kanban      # Start
 ./generate-config.py instance destroy --name v4-kanban --drop-db  # Destroy + drop DB
 ./generate-config.py instance db-setup --name v4-main     # Run migrations & seeds
+./generate-config.py instance db-snapshot --name v4-main  # Snapshot database to snapshots/
+./generate-config.py instance db-restore --name v4-new \
+  --snapshot snapshots/v4_main_20260404.sql.gz             # Restore snapshot
 ./generate-config.py instance logs --name v4-main -f      # Stream logs
 ./generate-config.py instance shell --name v4-main        # Shell into container
 ```
@@ -92,9 +99,9 @@ docker compose up -d
 
 Full management UI at `https://control.<domain>`:
 
-- Dashboard with service status and resource usage
+- Dashboard with service/instance health status and resource usage
 - Create/start/stop/destroy instances
-- Run database migrations
+- Run database migrations, take and restore snapshots
 - Live log streaming
 - Web terminal (shell into any container)
 
@@ -139,7 +146,41 @@ Run multiple branches simultaneously, each with its own isolated environment:
 #   https://fix.user196.online      → fix/issue-456
 ```
 
-Worktrees are stored at `apps/worktrees/<repo>/<branch>/` and cleaned up on destroy.
+Worktrees are stored at `apps/worktrees/<repo>/<branch>/` and cleaned up on destroy. Composer dependencies are auto-installed on first boot if `vendor/` is missing (shared download cache across all instances).
+
+## Database Snapshots
+
+Skip slow migrations+seeds by snapshotting a fully-initialized database and restoring it into new instances:
+
+```bash
+# Set up the first instance from scratch
+./generate-config.py instance db-setup --name v4-main
+
+# Snapshot its database
+./generate-config.py instance db-snapshot --name v4-main
+
+# Create new instances instantly from the snapshot
+./generate-config.py instance create --name v4-demo --type v4 \
+  --subdomain demo --from-snapshot snapshots/v4_main_20260404_120000.sql.gz
+
+# Or restore into an existing instance
+./generate-config.py instance db-restore --name v4-demo \
+  --snapshot snapshots/v4_main_20260404_120000.sql.gz --drop-existing
+```
+
+Snapshots are stored in `snapshots/` as gzipped pg_dump files. Also available via the controller web UI.
+
+## Environment Configuration
+
+Instance environment is split into three layers (later overrides earlier):
+
+| Layer | File | Scope |
+| ----- | ---- | ----- |
+| Shared | `instances/shared.env` | All instances (DB_HOST, CACHE_ENGINE, PHP limits) |
+| Instance | `instances/{name}/.env` | Per-instance (DB_NAME, SECURITY_SALT, REDIS_PREFIX) |
+| Overrides | `instances/{name}/overrides.env` | Optional user customizations |
+
+To change a shared setting (e.g., switch from Redis to Memcached), edit `instances/shared.env` once — all instances pick it up on restart.
 
 ## Access Points
 

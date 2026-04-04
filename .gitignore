@@ -50,6 +50,10 @@ instances/
 # Git worktrees for branch-based instances
 apps/worktrees/
 
+# Shared caches and snapshots
+.composer-cache/
+snapshots/
+
 # Generated Dockerfiles (auto-generated from templates/)
 Dockerfile.base
 Dockerfile.php7.2

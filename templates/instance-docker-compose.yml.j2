@@ -20,16 +20,35 @@ services:
       - {{ source_path }}:/var/www/html
       - {{ project_root }}/config/instance-apache.conf:/etc/apache2/sites-available/000-default.conf
       - {{ project_root }}/config/php-custom-limits.ini:/etc/php/8.3/apache2/conf.d/99-custom-limits.ini
+      - {{ project_root }}/.composer-cache:/root/.cache/composer
 {% if enable_https %}
       - {{ project_root }}/certs/{{ domain }}.crt:/usr/local/share/ca-certificates/{{ domain }}.crt:ro
 {% endif %}
     env_file:
+      - {{ project_root }}/instances/shared.env
       - ./.env
+      - path: ./overrides.env
+        required: false
 {% if enable_https %}
     environment:
       - SSL_CERT_FILE=/usr/local/share/ca-certificates/{{ domain }}.crt
       - CURL_CA_BUNDLE=/usr/local/share/ca-certificates/{{ domain }}.crt
 {% endif %}
+    command: >
+      sh -c '
+        /usr/local/bin/php-trust-certs.sh &&
+        if [ "$COMPOSER_INSTALL_ON_START" = "true" ] && [ ! -f /var/www/html/vendor/autoload.php ]; then
+          echo "vendor/ missing — running composer install..." &&
+          cd /var/www/html &&
+          composer install --no-interaction --prefer-dist --optimize-autoloader;
+        fi &&
+        apache2ctl -D FOREGROUND'
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     networks:
       traefik-network:
       durango-backend:

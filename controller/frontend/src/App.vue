@@ -177,6 +177,9 @@ body {
 .badge-running { background: #238636; color: #fff; }
 .badge-stopped { background: #6e7681; color: #fff; }
 .badge-error { background: #da3633; color: #fff; }
+.badge-healthy { background: #238636; color: #fff; }
+.badge-unhealthy { background: #da3633; color: #fff; }
+.badge-starting { background: #9e6a03; color: #fff; }
 
 input, select {
   padding: 8px 12px;

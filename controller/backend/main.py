@@ -332,6 +332,7 @@ def api_list_instances(user: str = Depends(verify_credentials)):
             "db_name": inst["db_name"],
             "container_name": container_name,
             "container_status": s["status"],
+            "container_health": s["health"],
             "created_at": inst.get("created_at", ""),
             "source_path": inst.get("source_path", ""),
             "branch": inst.get("branch", ""),
@@ -384,6 +385,15 @@ def api_create_instance(req: CreateInstanceRequest, user: str = Depends(verify_c
         "generated_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "node_version": "20",
     }
+
+    # Ensure shared.env exists
+    shared_env = INSTANCES_DIR / "shared.env"
+    if not shared_env.exists():
+        shared_ctx = {
+            "cache_engine": detect_cache_engine(),
+            "generated_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        shared_env.write_text(env.get_template("shared.env.j2").render(shared_ctx))
 
     inst_dir = INSTANCES_DIR / name
     inst_dir.mkdir(parents=True, exist_ok=True)
@@ -553,6 +563,94 @@ def api_db_setup(name: str, skip_seed: bool = Query(False), user: str = Depends(
         exit_code, output = container.exec_run("php bin/cake.php migrations seed", demux=True)
         seed_out = (output[0] or b"").decode() + (output[1] or b"").decode()
     return {"migrations": migrate_out, "seeds": seed_out}
+
+
+@app.post("/api/instances/{name}/db-snapshot")
+def api_db_snapshot(name: str, user: str = Depends(verify_credentials)):
+    registry = load_registry()
+    if name not in registry.get("instances", {}):
+        raise HTTPException(404, f"Instance '{name}' not found")
+    inst = registry["instances"][name]
+    db_name = safe_sql_identifier(inst.get("db_name", ""))
+    db_user = inst.get("db_user", "orangescrum")
+    prefix = get_domain_prefix()
+    pg_container = f"{prefix}-postgres16"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_file = PROJECT_ROOT / "snapshots" / f"{db_name}_{timestamp}.sql.gz"
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        pg = docker_client.containers.get(pg_container)
+        exit_code, output = pg.exec_run(
+            f"pg_dump -U {db_user} --no-owner --no-acl {db_name}", demux=True
+        )
+        if exit_code != 0:
+            raise HTTPException(500, f"pg_dump failed: {(output[1] or b'').decode()}")
+        import gzip
+        with open(output_file, "wb") as f:
+            f.write(gzip.compress(output[0]))
+        return {
+            "message": "Snapshot created",
+            "file": f"snapshots/{output_file.name}",
+            "size_kb": output_file.stat().st_size // 1024,
+        }
+    except docker.errors.NotFound:
+        raise HTTPException(404, "PostgreSQL container not found")
+
+
+@app.post("/api/instances/{name}/db-restore")
+def api_db_restore(name: str, snapshot: str = Query(...), user: str = Depends(verify_credentials)):
+    registry = load_registry()
+    if name not in registry.get("instances", {}):
+        raise HTTPException(404, f"Instance '{name}' not found")
+    snapshot_path = PROJECT_ROOT / snapshot
+    if not snapshot_path.exists() or not str(snapshot_path.resolve()).startswith(str(PROJECT_ROOT.resolve())):
+        raise HTTPException(400, "Invalid snapshot path")
+    inst = registry["instances"][name]
+    db_name = safe_sql_identifier(inst.get("db_name", ""))
+    db_user = inst.get("db_user", "orangescrum")
+    prefix = get_domain_prefix()
+    pg_container = f"{prefix}-postgres16"
+    try:
+        pg = docker_client.containers.get(pg_container)
+        import gzip
+        with open(snapshot_path, "rb") as f:
+            sql_data = gzip.decompress(f.read())
+        exit_code, output = pg.exec_run(
+            f"psql -U {db_user} -d {db_name}",
+            stdin=True, demux=True,
+        )
+        # Use put_archive to send SQL into the container, then run psql -f
+        import io, tarfile
+        tar_stream = io.BytesIO()
+        with tarfile.open(fileobj=tar_stream, mode="w") as tar:
+            info = tarfile.TarInfo(name="restore.sql")
+            info.size = len(sql_data)
+            tar.addfile(info, io.BytesIO(sql_data))
+        tar_stream.seek(0)
+        pg.put_archive("/tmp", tar_stream.read())
+        exit_code, output = pg.exec_run(
+            f"psql -U {db_user} -d {db_name} -f /tmp/restore.sql", demux=True
+        )
+        pg.exec_run("rm -f /tmp/restore.sql")
+        if exit_code != 0:
+            stderr = (output[1] or b"").decode()[:500]
+            raise HTTPException(500, f"Restore failed: {stderr}")
+        return {"message": "Database restored successfully"}
+    except docker.errors.NotFound:
+        raise HTTPException(404, "PostgreSQL container not found")
+
+
+@app.get("/api/snapshots")
+def api_list_snapshots(user: str = Depends(verify_credentials)):
+    snapshots_dir = PROJECT_ROOT / "snapshots"
+    if not snapshots_dir.exists():
+        return {"snapshots": []}
+    files = sorted(snapshots_dir.glob("*.sql.gz"), key=lambda p: p.stat().st_mtime, reverse=True)
+    return {"snapshots": [
+        {"name": f.name, "path": f"snapshots/{f.name}", "size_kb": f.stat().st_size // 1024,
+         "created": datetime.fromtimestamp(f.stat().st_mtime).isoformat()}
+        for f in files
+    ]}
 
 
 @app.get("/api/instances/{name}/stats")

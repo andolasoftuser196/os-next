@@ -412,12 +412,25 @@ def generate_configurations(domain, dry_run=False, interactive=False, enable_htt
         print()
 
     
+    # Derive cache_engine from resolved services
+    if context['services'].get('redis_durango'):
+        context['cache_engine'] = 'redis'
+    elif context['services'].get('memcached_durango'):
+        context['cache_engine'] = 'memcached'
+    else:
+        context['cache_engine'] = 'file'
+
     # Configuration files to generate
     configs = [
         {
             'template': '.env.j2',
             'output': '.env',
             'label': '.env'
+        },
+        {
+            'template': 'shared.env.j2',
+            'output': 'instances/shared.env',
+            'label': 'instances/shared.env'
         },
         {
             'template': 'Dockerfile.base.j2',
@@ -555,7 +568,7 @@ def generate_configurations(domain, dry_run=False, interactive=False, enable_htt
     # .env files are now generated from templates above, no need to create from examples
     if not dry_run:
         # Ensure app logs directories exist (so apps can write logs inside mounted folders)
-        for app_logs in ['apps/orangescrum-v4/logs', 'apps/orangescrum/logs', 'apps/durango-pg/logs']:
+        for app_logs in ['apps/orangescrum-v4/logs', 'apps/orangescrum/logs', 'apps/durango-pg/logs', '.composer-cache', 'snapshots']:
             try:
                 p = Path(app_logs)
                 p.mkdir(parents=True, exist_ok=True)
@@ -831,6 +844,11 @@ def instance_create(args):
         'node_version': '20',
     }
 
+    # Ensure shared.env exists
+    shared_env = Path('instances/shared.env')
+    if not shared_env.exists():
+        print_colored("Warning: instances/shared.env not found. Run './generate-config.py <domain>' to generate it.", Colors.YELLOW)
+
     # Create instance directory
     instance_dir = Path(f'instances/{name}')
     instance_dir.mkdir(parents=True, exist_ok=True)
@@ -903,6 +921,16 @@ def instance_create(args):
         print_colored(f"  Start manually: docker compose -f instances/{name}/docker-compose.yml up -d", Colors.YELLOW)
     except FileNotFoundError:
         print_colored("  Warning: Docker not found. Start manually when ready.", Colors.YELLOW)
+
+    # Restore from snapshot if requested
+    from_snapshot = getattr(args, 'from_snapshot', None)
+    if from_snapshot:
+        if not Path(from_snapshot).exists():
+            print_colored(f"Warning: Snapshot file not found: {from_snapshot}", Colors.YELLOW)
+        else:
+            print_colored(f"Restoring database from snapshot: {from_snapshot}...", Colors.BLUE)
+            restore_args = argparse.Namespace(name=name, snapshot=from_snapshot, drop_existing=False)
+            instance_db_restore(restore_args)
 
     # Update registry
     registry['domain'] = domain
@@ -1142,6 +1170,114 @@ def instance_db_setup(args):
     print()
 
 
+def instance_db_snapshot(args):
+    """Create a pg_dump snapshot of an instance's database"""
+    import subprocess
+
+    registry = load_registry()
+    name = args.name
+
+    if name not in registry.get('instances', {}):
+        print_colored(f"Error: Instance '{name}' not found.", Colors.RED)
+        sys.exit(1)
+
+    inst = registry['instances'][name]
+    ctx = get_project_context()
+    pg_container = f"{ctx['domain_prefix']}-postgres16"
+    db_name = inst['db_name']
+    db_user = inst.get('db_user', 'orangescrum')
+
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    output_file = args.output or f"snapshots/{db_name}_{timestamp}.sql.gz"
+    Path(output_file).parent.mkdir(parents=True, exist_ok=True)
+
+    print_header(f"Database Snapshot: {name}")
+    print(f"Database: {db_name}")
+    print(f"Output: {output_file}")
+
+    try:
+        dump_cmd = subprocess.Popen(
+            ['docker', 'exec', pg_container, 'pg_dump', '-U', db_user, '--no-owner', '--no-acl', db_name],
+            stdout=subprocess.PIPE
+        )
+        with open(output_file, 'wb') as f:
+            gzip_cmd = subprocess.Popen(['gzip'], stdin=dump_cmd.stdout, stdout=f)
+            dump_cmd.stdout.close()
+            gzip_cmd.communicate()
+
+        if dump_cmd.wait() != 0:
+            print_colored("Error: pg_dump failed.", Colors.RED)
+            sys.exit(1)
+
+        file_size = Path(output_file).stat().st_size
+        print_colored(f"Snapshot saved: {output_file} ({file_size // 1024} KB)", Colors.GREEN)
+    except Exception as e:
+        print_colored(f"Error creating snapshot: {e}", Colors.RED)
+        sys.exit(1)
+
+
+def instance_db_restore(args):
+    """Restore a pg_dump snapshot into an instance's database"""
+    import subprocess
+
+    registry = load_registry()
+    name = args.name
+    snapshot = args.snapshot
+
+    if name not in registry.get('instances', {}):
+        print_colored(f"Error: Instance '{name}' not found.", Colors.RED)
+        sys.exit(1)
+
+    if not Path(snapshot).exists():
+        print_colored(f"Error: Snapshot file not found: {snapshot}", Colors.RED)
+        sys.exit(1)
+
+    inst = registry['instances'][name]
+    ctx = get_project_context()
+    pg_container = f"{ctx['domain_prefix']}-postgres16"
+    db_name = inst['db_name']
+    db_user = inst.get('db_user', 'orangescrum')
+
+    print_header(f"Database Restore: {name}")
+    print(f"Database: {db_name}")
+    print(f"Snapshot: {snapshot}")
+
+    if args.drop_existing:
+        print_colored("Dropping existing database...", Colors.BLUE)
+        subprocess.run([
+            'docker', 'exec', pg_container, 'psql', '-U', 'postgres', '-c',
+            f"DROP DATABASE IF EXISTS {db_name};"
+        ], capture_output=True, text=True)
+        subprocess.run([
+            'docker', 'exec', pg_container, 'psql', '-U', 'postgres', '-c',
+            f"CREATE DATABASE {db_name} OWNER {db_user};"
+        ], check=True, capture_output=True, text=True)
+        subprocess.run([
+            'docker', 'exec', pg_container, 'psql', '-U', 'postgres', '-c',
+            f"GRANT ALL PRIVILEGES ON DATABASE {db_name} TO {db_user};"
+        ], check=True, capture_output=True, text=True)
+        print_colored("  Database recreated.", Colors.GREEN)
+
+    try:
+        gunzip = subprocess.Popen(['gunzip', '-c', snapshot], stdout=subprocess.PIPE)
+        psql = subprocess.Popen(
+            ['docker', 'exec', '-i', pg_container, 'psql', '-U', db_user, '-d', db_name],
+            stdin=gunzip.stdout, capture_output=True, text=True
+        )
+        gunzip.stdout.close()
+        stdout, stderr = psql.communicate()
+
+        if psql.returncode != 0:
+            print_colored(f"Warning: psql returned {psql.returncode}", Colors.YELLOW)
+            if stderr:
+                print(stderr[:500])
+        else:
+            print_colored("Database restored successfully.", Colors.GREEN)
+    except Exception as e:
+        print_colored(f"Error restoring snapshot: {e}", Colors.RED)
+        sys.exit(1)
+
+
 def instance_logs(args):
     """View logs for an instance"""
     import subprocess
@@ -1315,6 +1451,7 @@ def build_instance_parser():
     p.add_argument('--subdomain', help='Subdomain (default: same as name)')
     p.add_argument('--branch', help='Git branch — creates a worktree so this instance runs its own branch')
     p.add_argument('--source', help='Path to app source (default: apps/orangescrum-v4 or apps/durango-pg)')
+    p.add_argument('--from-snapshot', help='Restore this database snapshot instead of starting empty')
 
     # list
     sub.add_parser('list', help='List all instances')
@@ -1336,6 +1473,17 @@ def build_instance_parser():
     p = sub.add_parser('db-setup', help='Run migrations and seeds for an instance')
     p.add_argument('--name', required=True, help='Instance name')
     p.add_argument('--skip-seed', action='store_true', help='Skip database seeding')
+
+    # db-snapshot
+    p = sub.add_parser('db-snapshot', help='Take a pg_dump snapshot of an instance database')
+    p.add_argument('--name', required=True, help='Instance name')
+    p.add_argument('--output', help='Output file path (default: snapshots/<db_name>_<timestamp>.sql.gz)')
+
+    # db-restore
+    p = sub.add_parser('db-restore', help='Restore a database snapshot into an instance')
+    p.add_argument('--name', required=True, help='Instance name')
+    p.add_argument('--snapshot', required=True, help='Snapshot file path (.sql.gz)')
+    p.add_argument('--drop-existing', action='store_true', help='Drop and recreate the database before restore')
 
     # logs
     p = sub.add_parser('logs', help='View instance logs')
@@ -1367,6 +1515,8 @@ def main():
             'stop': instance_stop,
             'destroy': instance_destroy,
             'db-setup': instance_db_setup,
+            'db-snapshot': instance_db_snapshot,
+            'db-restore': instance_db_restore,
             'logs': instance_logs,
             'shell': instance_shell,
         }

@@ -40,6 +40,7 @@
             <td style="padding: 8px; font-weight: 500">{{ name }}</td>
             <td style="padding: 8px">
               <span class="badge" :class="badgeClass(info.status)">{{ info.status }}</span>
+              <span v-if="info.health" class="badge" :class="healthBadgeClass(info.health)" style="margin-left: 4px">{{ info.health }}</span>
             </td>
             <td style="padding: 8px">{{ serviceStats[name]?.cpu_percent || 0 }}%</td>
             <td style="padding: 8px">{{ serviceStats[name]?.mem_usage_mb || 0 }} MB</td>
@@ -69,6 +70,7 @@
             </td>
             <td style="padding: 8px">
               <span class="badge" :class="badgeClass(inst.container_status)">{{ inst.container_status }}</span>
+              <span v-if="inst.container_health" class="badge" :class="healthBadgeClass(inst.container_health)" style="margin-left: 4px">{{ inst.container_health }}</span>
             </td>
             <td style="padding: 8px">
               <div class="actions">
@@ -103,6 +105,12 @@ function badgeClass(s) {
   if (s === 'running') return 'badge-running'
   if (s === 'exited' || s === 'stopped') return 'badge-stopped'
   return 'badge-error'
+}
+
+function healthBadgeClass(h) {
+  if (h === 'healthy') return 'badge-healthy'
+  if (h === 'starting') return 'badge-starting'
+  return 'badge-unhealthy'
 }
 
 async function loadAll() {

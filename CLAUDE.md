@@ -62,6 +62,9 @@ docker compose up -d                               # Start base services
 ./generate-config.py instance stop --name <n>
 ./generate-config.py instance destroy --name <n> --drop-db
 ./generate-config.py instance db-setup --name <n>  # Migrations + seeds
+./generate-config.py instance db-snapshot --name <n>  # Snapshot DB to snapshots/
+./generate-config.py instance db-restore --name <n> --snapshot <file>  # Restore snapshot
+./generate-config.py instance create --name <n> --type v4 --subdomain <sub> --from-snapshot <file>
 ./generate-config.py instance logs --name <n> -f
 ./generate-config.py instance shell --name <n>
 ./generate-config.py instance list
@@ -93,6 +96,10 @@ The controller runs inside Docker. It uses the Docker SDK to manage sibling cont
 - **Redis**: shared Redis server, isolated by key prefix per instance
 - **Routing**: Traefik file watcher auto-discovers `traefik/instance-{name}.yml` (priority 100 beats V2 wildcard at 10)
 - **Code**: branch instances use git worktrees at `apps/worktrees/{repo}/{branch}/`
+- **Dependencies**: auto `composer install` on first boot if vendor/ missing; shared download cache at `.composer-cache/`
+- **Health**: instance containers have curl-based healthchecks; controller UI shows health badges
+- **Env layers**: `instances/shared.env` (project-wide) + `instances/{name}/.env` (unique) + optional `instances/{name}/overrides.env`
+- **DB snapshots**: `snapshots/*.sql.gz` — pg_dump/restore for fast instance provisioning
 - Reserved subdomains: `www`, `app`, `mail`, `traefik`, `storage`, `console`, `old-selfhosted`, `control`
 
 ## OrangeScrum V4 (CakePHP App)
