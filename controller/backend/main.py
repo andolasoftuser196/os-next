@@ -40,7 +40,11 @@ INSTANCES_DIR = PROJECT_ROOT / "instances"
 AUTH_USER = os.environ.get("CONTROLLER_USER", "admin")
 AUTH_PASS = os.environ.get("CONTROLLER_PASS", "")
 
-app = FastAPI(title="Dev Controller", version="1.0.0", docs_url=None, redoc_url=None)
+app = FastAPI(
+    title="Dev Controller",
+    version="1.0.0",
+    description="Manages dynamic OrangeScrum V4/selfhosted instances — containers, databases, routing, and git worktrees.",
+)
 security = HTTPBasic()
 
 
@@ -104,11 +108,17 @@ NAME_PATTERN = re.compile(r"^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$")
 SUBDOMAIN_PATTERN = re.compile(r"^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$")
 
 
+BRANCH_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_./-]{0,100}[a-zA-Z0-9]$|^[a-zA-Z0-9]$")
+
+
 class CreateInstanceRequest(BaseModel):
     name: str
     type: str
     subdomain: Optional[str] = None
     source: Optional[str] = None
+    branch: Optional[str] = None
+    from_snapshot: Optional[str] = None
+    restricted: bool = False
 
     @field_validator("name")
     @classmethod
@@ -140,10 +150,98 @@ class CreateInstanceRequest(BaseModel):
     def validate_source(cls, v):
         if v is None:
             return v
-        # Block path traversal
         if ".." in v or v.startswith("/"):
             raise ValueError("Source must be a relative path without '..'")
         return v
+
+    @field_validator("branch")
+    @classmethod
+    def validate_branch(cls, v):
+        if v is None:
+            return v
+        if ".." in v or not BRANCH_PATTERN.match(v):
+            raise ValueError("Invalid branch name")
+        return v
+
+    @field_validator("from_snapshot")
+    @classmethod
+    def validate_from_snapshot(cls, v):
+        if v is None:
+            return v
+        if ".." in v or not v.startswith("snapshots/") or not v.endswith(".sql.gz"):
+            raise ValueError("Snapshot must be a path like snapshots/<name>.sql.gz")
+        return v
+
+
+# ─── Response Models ─────────────────────────────────────────────────────────
+
+class ContainerStatusInfo(BaseModel):
+    status: str
+    health: str
+    started_at: str
+    image: str
+
+class StatusResponse(BaseModel):
+    domain: Optional[str]
+    domain_prefix: str
+    https: bool
+    protocol: str
+    services: dict[str, ContainerStatusInfo]
+
+class InstanceInfo(BaseModel):
+    name: str
+    type: str
+    subdomain: str
+    url: str
+    db_name: str
+    container_name: str
+    container_status: str
+    container_health: str
+    created_at: str
+    source_path: str
+    branch: str
+    worktree_path: str
+    restricted: bool
+
+class InstanceListResponse(BaseModel):
+    domain: Optional[str]
+    instances: list[InstanceInfo]
+
+class MessageResponse(BaseModel):
+    message: str
+
+class CreateInstanceResponse(BaseModel):
+    message: str
+    url: str
+
+class DbSetupResponse(BaseModel):
+    migrations: str
+    seeds: str
+
+class DbSnapshotResponse(BaseModel):
+    message: str
+    file: str
+    size_kb: int
+
+class SnapshotInfo(BaseModel):
+    name: str
+    path: str
+    size_kb: int
+    created: str
+
+class SnapshotListResponse(BaseModel):
+    snapshots: list[SnapshotInfo]
+
+class ContainerStatsResponse(BaseModel):
+    cpu_percent: float
+    mem_usage_mb: float
+    mem_limit_mb: float
+    mem_percent: float
+
+class LogsResponse(BaseModel):
+    lines: list[str]
+    container_name: str
+    tail: int
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -298,7 +396,7 @@ def validate_source_path(source: str) -> str:
 
 # ─── API Routes ───────────────────────────────────────────────────────────────
 
-@app.get("/api/status")
+@app.get("/api/status", response_model=StatusResponse, tags=["monitoring"], summary="System status")
 def api_status(user: str = Depends(verify_credentials)):
     prefix = get_domain_prefix()
     https = detect_https()
@@ -315,7 +413,7 @@ def api_status(user: str = Depends(verify_credentials)):
     }
 
 
-@app.get("/api/instances")
+@app.get("/api/instances", response_model=InstanceListResponse, tags=["instances"], summary="List all instances")
 def api_list_instances(user: str = Depends(verify_credentials)):
     registry = load_registry()
     d = get_domain()
@@ -336,11 +434,13 @@ def api_list_instances(user: str = Depends(verify_credentials)):
             "created_at": inst.get("created_at", ""),
             "source_path": inst.get("source_path", ""),
             "branch": inst.get("branch", ""),
+            "worktree_path": inst.get("worktree_path", ""),
+            "restricted": inst.get("restricted", False),
         })
     return {"domain": d, "instances": instances}
 
 
-@app.post("/api/instances")
+@app.post("/api/instances", response_model=CreateInstanceResponse, tags=["instances"], summary="Create a new instance")
 def api_create_instance(req: CreateInstanceRequest, user: str = Depends(verify_credentials)):
     name = req.name
     instance_type = req.type
@@ -428,20 +528,21 @@ def api_create_instance(req: CreateInstanceRequest, user: str = Depends(verify_c
         pass
 
     registry["domain"] = d
-    registry.setdefault("instances", {})[name] = {
+    inst_record = {
         "type": instance_type, "subdomain": subdomain,
         "db_name": db_name, "db_user": db_user,
         "container_name": f"{prefix}-{name}",
         "source_path": source, "created_at": datetime.now().isoformat(),
-        "status": "running",
+        "status": "running", "restricted": req.restricted,
     }
+    registry.setdefault("instances", {})[name] = inst_record
     save_registry(registry)
 
     protocol = "https" if enable_https else "http"
     return {"message": f"Instance '{name}' created", "url": f"{protocol}://{subdomain}.{d}"}
 
 
-@app.delete("/api/instances/{name}")
+@app.delete("/api/instances/{name}", response_model=MessageResponse, tags=["instances"], summary="Destroy an instance")
 def api_destroy_instance(name: str, drop_db: bool = Query(False), user: str = Depends(verify_credentials)):
     registry = load_registry()
     if name not in registry.get("instances", {}):
@@ -504,7 +605,7 @@ def api_destroy_instance(name: str, drop_db: bool = Query(False), user: str = De
     return {"message": f"Instance '{name}' destroyed"}
 
 
-@app.post("/api/instances/{name}/start")
+@app.post("/api/instances/{name}/start", response_model=MessageResponse, tags=["instances"], summary="Start an instance")
 def api_start_instance(name: str, user: str = Depends(verify_credentials)):
     registry = load_registry()
     if name not in registry.get("instances", {}):
@@ -525,7 +626,7 @@ def api_start_instance(name: str, user: str = Depends(verify_credentials)):
     return {"message": f"Instance '{name}' started"}
 
 
-@app.post("/api/instances/{name}/stop")
+@app.post("/api/instances/{name}/stop", response_model=MessageResponse, tags=["instances"], summary="Stop an instance")
 def api_stop_instance(name: str, user: str = Depends(verify_credentials)):
     registry = load_registry()
     if name not in registry.get("instances", {}):
@@ -546,7 +647,7 @@ def api_stop_instance(name: str, user: str = Depends(verify_credentials)):
     return {"message": f"Instance '{name}' stopped"}
 
 
-@app.post("/api/instances/{name}/db-setup")
+@app.post("/api/instances/{name}/db-setup", response_model=DbSetupResponse, tags=["database"], summary="Run migrations and seeds")
 def api_db_setup(name: str, skip_seed: bool = Query(False), user: str = Depends(verify_credentials)):
     registry = load_registry()
     if name not in registry.get("instances", {}):
@@ -565,7 +666,7 @@ def api_db_setup(name: str, skip_seed: bool = Query(False), user: str = Depends(
     return {"migrations": migrate_out, "seeds": seed_out}
 
 
-@app.post("/api/instances/{name}/db-snapshot")
+@app.post("/api/instances/{name}/db-snapshot", response_model=DbSnapshotResponse, tags=["database"], summary="Snapshot database")
 def api_db_snapshot(name: str, user: str = Depends(verify_credentials)):
     registry = load_registry()
     if name not in registry.get("instances", {}):
@@ -597,7 +698,7 @@ def api_db_snapshot(name: str, user: str = Depends(verify_credentials)):
         raise HTTPException(404, "PostgreSQL container not found")
 
 
-@app.post("/api/instances/{name}/db-restore")
+@app.post("/api/instances/{name}/db-restore", response_model=MessageResponse, tags=["database"], summary="Restore database from snapshot")
 def api_db_restore(name: str, snapshot: str = Query(...), user: str = Depends(verify_credentials)):
     registry = load_registry()
     if name not in registry.get("instances", {}):
@@ -640,7 +741,7 @@ def api_db_restore(name: str, snapshot: str = Query(...), user: str = Depends(ve
         raise HTTPException(404, "PostgreSQL container not found")
 
 
-@app.get("/api/snapshots")
+@app.get("/api/snapshots", response_model=SnapshotListResponse, tags=["database"], summary="List database snapshots")
 def api_list_snapshots(user: str = Depends(verify_credentials)):
     snapshots_dir = PROJECT_ROOT / "snapshots"
     if not snapshots_dir.exists():
@@ -653,13 +754,25 @@ def api_list_snapshots(user: str = Depends(verify_credentials)):
     ]}
 
 
-@app.get("/api/instances/{name}/stats")
+@app.get("/api/instances/{name}/logs", response_model=LogsResponse, tags=["monitoring"], summary="Get recent container logs")
+def api_instance_logs(name: str, tail: int = Query(100, ge=1, le=5000), user: str = Depends(verify_credentials)):
+    """Returns the last N lines of container logs (non-streaming). Use the WebSocket endpoint for live streaming."""
+    container_name = sanitize_container_name(name)
+    try:
+        container = docker_client.containers.get(container_name)
+    except docker.errors.NotFound:
+        raise HTTPException(404, f"Container '{container_name}' not running")
+    logs = container.logs(tail=tail, timestamps=True).decode(errors="replace")
+    return {"lines": logs.splitlines(), "container_name": container_name, "tail": tail}
+
+
+@app.get("/api/instances/{name}/stats", response_model=ContainerStatsResponse, tags=["monitoring"], summary="Instance resource usage")
 def api_instance_stats(name: str, user: str = Depends(verify_credentials)):
     container_name = sanitize_container_name(name)
     return get_container_stats(container_name)
 
 
-@app.get("/api/services/stats")
+@app.get("/api/services/stats", tags=["monitoring"], summary="Base services resource usage")
 def api_services_stats(user: str = Depends(verify_credentials)):
     prefix = get_domain_prefix()
     services = list(_get_base_service_names() - {"controller"})
