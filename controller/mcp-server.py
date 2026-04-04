@@ -91,19 +91,19 @@ mcp = FastMCP(
 
 
 @mcp.tool()
-def get_status() -> str:
+def devctl_get_status() -> str:
     """Get system status: domain, protocol, and health of all base services (Traefik, PostgreSQL, Redis, MySQL, etc.)."""
     return _get("/api/status")
 
 
 @mcp.tool()
-def list_instances() -> str:
+def devctl_list_instances() -> str:
     """List all instances with their status, URL, branch, database, and restricted flag. Restricted instances have real API keys and should not be accessed for data operations."""
     return _get("/api/instances")
 
 
 @mcp.tool()
-def create_instance(
+def devctl_create_instance(
     name: str,
     type: str,
     subdomain: str = "",
@@ -132,7 +132,7 @@ def create_instance(
 
 
 @mcp.tool()
-def destroy_instance(name: str, drop_db: bool = False) -> str:
+def devctl_destroy_instance(name: str, drop_db: bool = False) -> str:
     """Destroy an instance — removes container, config, and optionally its database.
 
     Args:
@@ -143,7 +143,7 @@ def destroy_instance(name: str, drop_db: bool = False) -> str:
 
 
 @mcp.tool()
-def start_instance(name: str) -> str:
+def devctl_start_instance(name: str) -> str:
     """Start a stopped instance.
 
     Args:
@@ -153,7 +153,7 @@ def start_instance(name: str) -> str:
 
 
 @mcp.tool()
-def stop_instance(name: str) -> str:
+def devctl_stop_instance(name: str) -> str:
     """Stop a running instance.
 
     Args:
@@ -163,7 +163,7 @@ def stop_instance(name: str) -> str:
 
 
 @mcp.tool()
-def db_setup(name: str, skip_seed: bool = False) -> str:
+def devctl_db_setup(name: str, skip_seed: bool = False) -> str:
     """Run CakePHP database migrations and seeds for an instance. Blocked for restricted instances.
 
     Args:
@@ -177,7 +177,7 @@ def db_setup(name: str, skip_seed: bool = False) -> str:
 
 
 @mcp.tool()
-def db_snapshot(name: str) -> str:
+def devctl_db_snapshot(name: str) -> str:
     """Create a pg_dump snapshot of an instance's database. Saved to snapshots/ as .sql.gz. Blocked for restricted instances.
 
     Args:
@@ -190,7 +190,7 @@ def db_snapshot(name: str) -> str:
 
 
 @mcp.tool()
-def db_restore(name: str, snapshot: str) -> str:
+def devctl_db_restore(name: str, snapshot: str) -> str:
     """Restore a database snapshot into an instance. Blocked for restricted instances.
 
     Args:
@@ -204,13 +204,13 @@ def db_restore(name: str, snapshot: str) -> str:
 
 
 @mcp.tool()
-def list_snapshots() -> str:
+def devctl_list_snapshots() -> str:
     """List all available database snapshots with name, path, size, and creation date."""
     return _get("/api/snapshots")
 
 
 @mcp.tool()
-def instance_logs(name: str, tail: int = 100) -> str:
+def devctl_instance_logs(name: str, tail: int = 100) -> str:
     """Get the last N lines of an instance's container logs. Blocked for restricted instances.
 
     Args:
