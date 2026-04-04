@@ -86,7 +86,7 @@ def _check_restricted(name: str, operation: str) -> str | None:
 
 mcp = FastMCP(
     "dev-controller",
-    description="Manage OrangeScrum dev instances — create, destroy, start, stop, migrate, snapshot, and monitor containers.",
+    instructions="Manage OrangeScrum dev instances — create, destroy, start, stop, migrate, snapshot, and monitor containers.",
 )
 
 
