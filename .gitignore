@@ -50,6 +50,14 @@ instances/
 # Git worktrees for branch-based instances
 apps/worktrees/
 
+# Shared caches and snapshots
+.composer-cache/
+snapshots/
+
+# Secrets (real API keys for restricted instances)
+instances/secrets.env
+instances/*/secrets.env
+
 # Generated Dockerfiles (auto-generated from templates/)
 Dockerfile.base
 Dockerfile.php7.2

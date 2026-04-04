@@ -63,6 +63,11 @@ services:
       - "127.0.0.1:${MEMCACHED_ORANGESCRUM_PORT:-{{ memcached_orangescrum_port }}}:11211"
 {% endif %}
 
+  # Controller API (direct access for MCP server and CLI tools)
+  controller:
+    ports:
+      - "127.0.0.1:8900:8900"
+
 {% if services.browser %}
   # Browser VNC access (primary access method)
   browser:

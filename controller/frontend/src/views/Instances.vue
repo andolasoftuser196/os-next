@@ -47,6 +47,7 @@
           <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px">
             <h3 style="margin: 0">{{ inst.name }}</h3>
             <span class="badge" :class="badgeClass(inst.container_status)">{{ inst.container_status }}</span>
+            <span v-if="inst.container_health" class="badge" :class="healthBadgeClass(inst.container_health)">{{ inst.container_health }}</span>
             <span style="color: #8b949e; font-size: 12px">{{ inst.type }}</span>
             <span v-if="inst.branch" style="color: #d2a8ff; font-size: 12px; font-family: monospace">{{ inst.branch }}</span>
           </div>
@@ -67,6 +68,7 @@
             {{ actionLoading[inst.name] ? '...' : 'Stop' }}
           </button>
           <button class="btn" @click="dbSetup(inst.name)" :disabled="actionLoading[inst.name]">DB Setup</button>
+          <button class="btn" @click="dbSnapshot(inst.name)" :disabled="actionLoading[inst.name]">Snapshot</button>
           <router-link v-if="inst.container_status === 'running'" :to="`/terminal/${inst.name}`" class="btn">Terminal</router-link>
           <router-link v-if="inst.container_status === 'running'" :to="`/logs/${inst.name}`" class="btn">Logs</router-link>
           <button class="btn btn-danger" @click="destroy(inst.name)" :disabled="actionLoading[inst.name]">Destroy</button>
@@ -103,6 +105,12 @@ function badgeClass(s) {
   if (s === 'running') return 'badge-running'
   if (s === 'exited' || s === 'stopped') return 'badge-stopped'
   return 'badge-error'
+}
+
+function healthBadgeClass(h) {
+  if (h === 'healthy') return 'badge-healthy'
+  if (h === 'starting') return 'badge-starting'
+  return 'badge-unhealthy'
 }
 
 function messageColor(name) {
@@ -200,6 +208,20 @@ async function dbSetup(name) {
     messages.value[name] = 'DB setup complete'
   } catch (e) {
     messages.value[name] = `DB setup failed: ${e.message}`
+    messageErrors.value[name] = true
+  }
+  actionLoading[name] = false
+}
+
+async function dbSnapshot(name) {
+  actionLoading[name] = true
+  messages.value[name] = 'Creating snapshot...'
+  messageErrors.value[name] = false
+  try {
+    const res = await api.dbSnapshot(name)
+    messages.value[name] = `Snapshot created: ${res.file} (${res.size_kb} KB)`
+  } catch (e) {
+    messages.value[name] = `Snapshot failed: ${e.message}`
     messageErrors.value[name] = true
   }
   actionLoading[name] = false

@@ -45,6 +45,9 @@ export const api = {
   startInstance: (name) => request(`/instances/${name}/start`, { method: 'POST' }),
   stopInstance: (name) => request(`/instances/${name}/stop`, { method: 'POST' }),
   dbSetup: (name) => request(`/instances/${name}/db-setup`, { method: 'POST' }),
+  dbSnapshot: (name) => request(`/instances/${name}/db-snapshot`, { method: 'POST' }),
+  dbRestore: (name, snapshot) => request(`/instances/${name}/db-restore?snapshot=${encodeURIComponent(snapshot)}`, { method: 'POST' }),
+  getSnapshots: () => request('/snapshots'),
   getInstanceStats: (name) => request(`/instances/${name}/stats`),
   getServicesStats: () => request('/services/stats'),
 }

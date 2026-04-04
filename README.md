@@ -56,12 +56,6 @@ docker compose up -d
 # Open http://localhost:3000 in your browser
 ```
 
-Or use the one-command setup:
-
-```bash
-./setup.sh user196.online
-```
-
 ## Instance Management
 
 ### Create
@@ -80,6 +74,10 @@ Or use the one-command setup:
 # Instance from a custom source path
 ./generate-config.py instance create --name v4-custom --type v4 \
   --subdomain custom --source ./apps/my-fork
+
+# Instance with a pre-populated database (from a snapshot)
+./generate-config.py instance create --name v4-demo --type v4 \
+  --subdomain demo --from-snapshot snapshots/v4_main_20260404.sql.gz
 ```
 
 ### Lifecycle
@@ -90,6 +88,9 @@ Or use the one-command setup:
 ./generate-config.py instance start --name v4-kanban      # Start
 ./generate-config.py instance destroy --name v4-kanban --drop-db  # Destroy + drop DB
 ./generate-config.py instance db-setup --name v4-main     # Run migrations & seeds
+./generate-config.py instance db-snapshot --name v4-main  # Snapshot database to snapshots/
+./generate-config.py instance db-restore --name v4-new \
+  --snapshot snapshots/v4_main_20260404.sql.gz             # Restore snapshot
 ./generate-config.py instance logs --name v4-main -f      # Stream logs
 ./generate-config.py instance shell --name v4-main        # Shell into container
 ```
@@ -98,9 +99,9 @@ Or use the one-command setup:
 
 Full management UI at `https://control.<domain>`:
 
-- Dashboard with service status and resource usage
+- Dashboard with service/instance health status and resource usage
 - Create/start/stop/destroy instances
-- Run database migrations
+- Run database migrations, take and restore snapshots
 - Live log streaming
 - Web terminal (shell into any container)
 
@@ -145,7 +146,41 @@ Run multiple branches simultaneously, each with its own isolated environment:
 #   https://fix.user196.online      → fix/issue-456
 ```
 
-Worktrees are stored at `apps/worktrees/<repo>/<branch>/` and cleaned up on destroy.
+Worktrees are stored at `apps/worktrees/<repo>/<branch-dir>/` and cleaned up on destroy. `composer.lock` is copied from the source repo so worktrees use fast `composer install` instead of slow `composer update`. Instance `logs/` and `tmp/` use Docker-managed volumes to avoid polluting worktree directories.
+
+## Database Snapshots
+
+Skip slow migrations+seeds by snapshotting a fully-initialized database and restoring it into new instances:
+
+```bash
+# Set up the first instance from scratch
+./generate-config.py instance db-setup --name v4-main
+
+# Snapshot its database
+./generate-config.py instance db-snapshot --name v4-main
+
+# Create new instances instantly from the snapshot
+./generate-config.py instance create --name v4-demo --type v4 \
+  --subdomain demo --from-snapshot snapshots/v4_main_20260404_120000.sql.gz
+
+# Or restore into an existing instance
+./generate-config.py instance db-restore --name v4-demo \
+  --snapshot snapshots/v4_main_20260404_120000.sql.gz --drop-existing
+```
+
+Snapshots are stored in `snapshots/` as gzipped pg_dump files. Also available via the controller web UI.
+
+## Environment Configuration
+
+Instance environment is split into three layers (later overrides earlier):
+
+| Layer | File | Scope |
+| ----- | ---- | ----- |
+| Shared | `instances/shared.env` | All instances (DB_HOST, CACHE_ENGINE, PHP limits) |
+| Instance | `instances/{name}/.env` | Per-instance (DB_NAME, SECURITY_SALT, REDIS_PREFIX) |
+| Overrides | `instances/{name}/overrides.env` | Optional user customizations |
+
+To change a shared setting (e.g., switch from Redis to Memcached), edit `instances/shared.env` once — all instances pick it up on restart.
 
 ## Access Points
 
@@ -176,7 +211,7 @@ Exact port values are auto-generated per domain (unique offset to avoid conflict
 │       │   └── enhance-kanban-ui/ # Worktree for branch
 │       └── durango-pg/
 ├── instances/                     # Dynamic instance configs (generated)
-│   ├── registry.json              # Instance registry
+│   ├── registry.db                # Instance registry (SQLite)
 │   ├── v4-main/                   # Per-instance compose + .env
 │   └── sh-main/
 ├── traefik/                       # Traefik routing configs
@@ -185,14 +220,19 @@ Exact port values are auto-generated per domain (unique offset to avoid conflict
 │   └── instance-sh-main.yml
 ├── templates/                     # Jinja2 templates (source of truth)
 ├── controller/                    # Web controller (FastAPI + Vue)
-│   ├── backend/                   # Python API
+│   ├── backend/                   # Python API (modular: auth, models, helpers, routes/)
 │   └── frontend/                  # Vue 3 SPA
 ├── config/                        # Apache/PHP/dnsmasq configs
 ├── certs/                         # SSL certificates
 ├── entrypoints/                   # Container init scripts
-├── generate-config.py             # Config generator + instance manager
-├── setup.sh                       # One-command setup
-└── build-images.sh                # Docker image builder
+├── lib/                           # Shared Python modules for generate-config.py
+│   ├── config_generator.py        # Template rendering, backups, reset
+│   ├── instance_manager.py        # Instance create/destroy/start/stop/list
+│   ├── database.py                # db-setup, snapshot, restore
+│   ├── registry.py                # SQLite-backed instance registry
+│   └── output.py                  # Terminal colors and formatting
+├── generate-config.py             # CLI entry point (delegates to lib/)
+└── build-images.sh                # Docker image builder (generated)
 ```
 
 ## Docker Images
@@ -261,3 +301,30 @@ docker compose restart traefik
 # Browser can't resolve domains
 docker compose restart dns browser
 ```
+
+### Branch instances: missing config files
+
+The entrypoint automatically copies `app_local.example.php` → `app_local.php` and other config examples on first boot. If a branch instance still fails with config errors, copy the missing file manually:
+
+```bash
+cp apps/<app-repo>/config/<file> apps/worktrees/<app-repo>/<branch-dir>/config/
+```
+
+### Instance container unhealthy
+
+The healthcheck has a 60-second start period. If the container stays unhealthy:
+
+```bash
+docker logs <container-name>
+```
+
+Common causes: `composer install` still running (wait for first boot to complete), database not ready (`docker compose exec postgres16 pg_isready`).
+
+## Testing
+
+```bash
+source .venv/bin/activate
+python -m pytest tests/ -v
+```
+
+Requires base services running (`docker compose up -d`). Tests create and destroy real instances against the live controller API.

@@ -12,6 +12,11 @@ set +e
 
 echo "Starting OrangeScrum V4 Development Environment..."
 
+# Trust SSL certificates (if present)
+if [ -x /usr/local/bin/php-trust-certs.sh ]; then
+    /usr/local/bin/php-trust-certs.sh
+fi
+
 APP_DIR="/var/www/html"
 
 # ============================================
@@ -112,6 +117,17 @@ else
 fi
 
 # ============================================
+# Install Dependencies
+# ============================================
+if [ ! -f "$APP_DIR/vendor/autoload.php" ]; then
+    echo "vendor/ missing — running composer install as appuser..."
+    su -s /bin/sh appuser -c "cd $APP_DIR && composer install --no-interaction --prefer-dist --optimize-autoloader"
+    echo "✓ Composer dependencies installed"
+else
+    echo "✓ vendor/ already present"
+fi
+
+# ============================================
 # Setup Configuration Files
 # ============================================
 echo "Setting up configuration files..."
@@ -122,6 +138,14 @@ if [ -n "$DB_PASSWORD_FILE" ] && [ -f "$DB_PASSWORD_FILE" ]; then
 fi
 
 cd "$APP_DIR"
+
+# Copy app_local configuration (created by composer post-install, but missing in fresh worktrees)
+if [ ! -f "$APP_DIR/config/app_local.php" ] && [ -f "$APP_DIR/config/app_local.example.php" ]; then
+    cp "$APP_DIR/config/app_local.example.php" "$APP_DIR/config/app_local.php"
+    echo "  ✓ app_local.php configuration ready (from example)"
+else
+    echo "  ℹ app_local.php already exists or example not found"
+fi
 
 # Copy Redis cache configuration (default for production)
 if [ ! -f "$APP_DIR/config/cache_redis.php" ] && [ -f "$APP_DIR/config/cache_redis.example.php" ]; then

@@ -84,7 +84,7 @@ services:
   # PostgreSQL 16 (shared by all V4/selfhosted instances)
 {% if services.postgres16 %}
   postgres16:
-    image: postgres:16.10
+    image: postgres:16.10-alpine
     container_name: {{ domain_prefix }}-postgres16
     restart: unless-stopped
     environment:
@@ -205,11 +205,15 @@ services:
     build:
       context: ./controller
       dockerfile: Dockerfile
+      args:
+        BUILDER_UID: {{ builder_uid }}
+        BUILDER_GID: {{ builder_uid }}
+        DOCKER_GID: ${DOCKER_GID:-986}
     image: orangescrum-controller:{{ domain | replace('.', '-') }}
     container_name: {{ domain_prefix }}-controller
     restart: unless-stopped
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/run/docker.sock:/var/run/docker.sock
       - .:/project:rw
     environment:
       - PROJECT_ROOT=/project
@@ -223,7 +227,7 @@ services:
   # Browser with VNC (primary access method for all apps)
 {% if services.browser %}
   browser:
-    image: lscr.io/linuxserver/chromium:latest
+    image: lscr.io/linuxserver/chromium:67a9c4d9-ls26
     container_name: {{ domain_prefix }}-browser
     restart: unless-stopped
     shm_size: 512mb
