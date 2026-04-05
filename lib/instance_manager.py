@@ -156,7 +156,7 @@ def instance_create(args):
 
     shared_env = Path('instances/shared.env')
     if not shared_env.exists():
-        print_colored("Warning: instances/shared.env not found. Run './generate-config.py <domain>' to generate it.", Colors.YELLOW)
+        print_colored("Warning: instances/shared.env not found. Run './ssmd <domain>' to generate it.", Colors.YELLOW)
 
     instance_dir = Path(f'instances/{name}')
     instance_dir.mkdir(parents=True, exist_ok=True)
@@ -207,7 +207,7 @@ def instance_create(args):
         ], check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
         print_colored(f"  Warning: Could not create database (is postgres16 running?): {e}", Colors.YELLOW)
-        print_colored("  Run 'docker compose up -d postgres16' first, then './generate-config.py instance db-setup --name " + name + "'", Colors.YELLOW)
+        print_colored("  Run 'docker compose up -d postgres16' first, then './ssmd instance db-setup --name " + name + "'", Colors.YELLOW)
     except FileNotFoundError:
         print_colored("  Warning: Docker not found. Database will be created when you run db-setup.", Colors.YELLOW)
 
@@ -263,7 +263,7 @@ def instance_create(args):
     print(f"  Compose: instances/{name}/docker-compose.yml")
     print()
     print("Next steps:")
-    print(f"  Run migrations: ./generate-config.py instance db-setup --name {name}")
+    print(f"  Run migrations: ./ssmd instance db-setup --name {name}")
     print(f"  View logs: docker compose -f instances/{name}/docker-compose.yml logs -f")
     print()
 
@@ -275,7 +275,7 @@ def instance_list(args):
 
     if not instances:
         print_colored("No instances found.", Colors.YELLOW)
-        print("Create one with: ./generate-config.py instance create --name <name> --type <v4|selfhosted>")
+        print("Create one with: ./ssmd instance create --name <name> --type <v4|selfhosted>")
         return
 
     domain = registry.get('domain', 'unknown')

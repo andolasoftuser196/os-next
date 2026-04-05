@@ -11,7 +11,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
-from .output import Colors, print_colored, print_header
+from .output import Colors, print_colored, print_header, print_banner
 from .registry import (
     DEFAULT_SOURCE_PATHS,
     detect_current_domain, load_registry, reset_registry,
@@ -28,7 +28,6 @@ def backup_files(backup_dir):
         '.env',
         'docker-compose.yml',
         'docker-compose.override.yml',
-        'MULTI_TENANT.md',
         'traefik/dynamic.yml',
         'config/durango-apache.conf',
         'config/orangescrum-apache.conf',
@@ -118,7 +117,7 @@ def generate_configurations(domain, dry_run=False, interactive=False, enable_htt
     base_memcached_durango = 11200 + port_offset
     base_memcached_orangescrum = 11200 + port_offset + 1
 
-    print_header("OrangeScrum Docker Configuration Generator")
+    print_banner()
     print(f"Domain: {domain}")
     print(f"LAN IP: {lan_ip}")
     print(f"HTTPS: {'Enabled' if enable_https else 'Disabled (use --no-https to disable)'}")
@@ -250,7 +249,7 @@ def generate_configurations(domain, dry_run=False, interactive=False, enable_htt
         print_colored('='*60, Colors.BLUE)
 
         print_colored('\nStep 1: Base Applications', Colors.BLUE)
-        print("V4/selfhosted apps are managed as dynamic instances (see: ./generate-config.py instance create)")
+        print("V4/selfhosted apps are managed as dynamic instances (see: ./ssmd instance create)")
         print()
 
         try:
@@ -333,7 +332,6 @@ def generate_configurations(domain, dry_run=False, interactive=False, enable_htt
         {'template': 'build-images.sh.j2', 'output': 'build-images.sh', 'label': 'build-images.sh'},
         {'template': 'docker-compose.yml.j2', 'output': 'docker-compose.yml', 'label': 'docker-compose.yml'},
         {'template': 'docker-compose.override.yml.j2', 'output': 'docker-compose.override.yml', 'label': 'docker-compose.override.yml'},
-        {'template': 'MULTI_TENANT.md.j2', 'output': 'MULTI_TENANT.md', 'label': 'MULTI_TENANT.md'},
         {'template': 'traefik-dynamic.yml.j2', 'output': 'traefik/dynamic.yml', 'label': 'traefik/dynamic.yml'},
         {'template': 'durango-apache.conf.j2', 'output': 'config/durango-apache.conf', 'label': 'config/durango-apache.conf'},
         {'template': 'orangescrum-apache.conf.j2', 'output': 'config/orangescrum-apache.conf', 'label': 'config/orangescrum-apache.conf'},
@@ -473,7 +471,6 @@ def handle_reset():
         '.env',
         'docker-compose.yml',
         'docker-compose.override.yml',
-        'MULTI_TENANT.md',
         'traefik/dynamic.yml',
         'config/durango-apache.conf',
         'config/orangescrum-apache.conf',

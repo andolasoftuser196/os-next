@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-A Docker-based development environment that manages dynamic, isolated app instances. Each instance gets its own container, database, Redis prefix, subdomain, and optionally a git worktree for branch isolation. A Traefik reverse proxy routes traffic by subdomain. A FastAPI+Vue controller provides a web UI for instance management.
+**ssmd** (Spawn, Scope, Migrate, Destroy) — a Docker-based development environment that manages dynamic, isolated app instances. Each instance gets its own container, database, Redis prefix, subdomain, and optionally a git worktree for branch isolation. A Traefik reverse proxy routes traffic by subdomain. A FastAPI+Vue controller provides a web UI for instance management.
 
 ## Architecture
 
@@ -28,7 +28,7 @@ VNC Browser (localhost:3000)
 
 | Component | Location | Tech |
 |-----------|----------|------|
-| CLI entry point | `generate-config.py` | Delegates to `lib/` modules |
+| CLI entry point | `ssmd` (alias: `generate-config.py`) | Delegates to `lib/` modules |
 | Config generation | `lib/config_generator.py` | Jinja2 template rendering, backups, reset |
 | Instance management | `lib/instance_manager.py` | Create, destroy, start, stop, list |
 | Database operations | `lib/database.py` | Migrations, snapshots, restore |
@@ -51,7 +51,7 @@ VNC Browser (localhost:3000)
 ```bash
 ./setup-venv.sh                                    # Create Python venv
 source .venv/bin/activate
-./generate-config.py <domain>                      # Generate all configs
+./ssmd <domain>                      # Generate all configs
 ./generate-certs.sh                                # SSL certificates
 ./build-images.sh all                              # Build Docker images (base, php8.3, php7.2)
 docker compose up -d                               # Start base services
@@ -59,28 +59,28 @@ docker compose up -d                               # Start base services
 
 ### Instance Lifecycle
 ```bash
-./generate-config.py instance create --name <n> --type <v4|selfhosted> --subdomain <sub>
-./generate-config.py instance create --name <n> --type v4 --subdomain <sub> --branch <branch>
-./generate-config.py instance start --name <n>
-./generate-config.py instance stop --name <n>
-./generate-config.py instance destroy --name <n> --drop-db
-./generate-config.py instance db-setup --name <n>  # Migrations + seeds
-./generate-config.py instance db-snapshot --name <n>  # Snapshot DB to snapshots/
-./generate-config.py instance db-restore --name <n> --snapshot <file>  # Restore snapshot
-./generate-config.py instance create --name <n> --type v4 --subdomain <sub> --from-snapshot <file>
-./generate-config.py instance logs --name <n> -f
-./generate-config.py instance shell --name <n>
-./generate-config.py instance list
+./ssmd instance create --name <n> --type <v4|selfhosted> --subdomain <sub>
+./ssmd instance create --name <n> --type v4 --subdomain <sub> --branch <branch>
+./ssmd instance start --name <n>
+./ssmd instance stop --name <n>
+./ssmd instance destroy --name <n> --drop-db
+./ssmd instance db-setup --name <n>  # Migrations + seeds
+./ssmd instance db-snapshot --name <n>  # Snapshot DB to snapshots/
+./ssmd instance db-restore --name <n> --snapshot <file>  # Restore snapshot
+./ssmd instance create --name <n> --type v4 --subdomain <sub> --from-snapshot <file>
+./ssmd instance logs --name <n> -f
+./ssmd instance shell --name <n>
+./ssmd instance list
 ```
 
 ### Reset (destructive)
 ```bash
-./generate-config.py --reset    # Stops all instances, removes worktrees, clears registry
+./ssmd --reset    # Stops all instances, removes worktrees, clears registry
 ```
 
 ## How Config Generation Works
 
-`generate-config.py` is a thin CLI entry point that delegates to modules in `lib/`:
+`ssmd` is the CLI entry point (`generate-config.py` is a backward-compatible alias) that delegates to modules in `lib/`:
 
 - `lib/config_generator.py` — renders Jinja2 templates from `templates/` into their final locations
 - `lib/instance_manager.py` — instance create/destroy/start/stop/list/logs/shell

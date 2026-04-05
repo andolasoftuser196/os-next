@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 """
-Configuration Generator for Multi-Domain Docker Setup
-Usage: ./generate-config.py <domain> [--apply]
+ssmd — Spawn, Scope, Migrate, Destroy
+Dynamic isolated dev instance manager.
 
+Usage: ./ssmd <domain>           Generate base configs
+       ./ssmd instance create    Create a new instance
+       ./ssmd --reset            Remove all generated files
+
+Legacy alias: ./generate-config.py still works.
 This script uses a Python virtual environment. Run ./setup-venv.sh first.
 """
 
@@ -41,7 +46,7 @@ from lib.database import instance_db_setup, instance_db_snapshot, instance_db_re
 def build_instance_parser():
     """Build argparse parser for instance subcommands"""
     parser = argparse.ArgumentParser(
-        prog='generate-config.py instance',
+        prog=f'{Path(sys.argv[0]).name} instance',
         description='Manage dynamic V4/selfhosted instances',
     )
     sub = parser.add_subparsers(dest='instance_command')
@@ -131,8 +136,10 @@ def main():
         sys.exit(0)
 
     # Config generation parser
+    from lib.output import BANNER
+    banner = BANNER
     parser = argparse.ArgumentParser(
-        description='OrangeScrum Docker Configuration & Instance Manager',
+        description=banner,
         epilog='Examples:\n'
                '  %(prog)s user196.online                Generate base configs (HTTPS enabled)\n'
                '  %(prog)s user196.online --no-https     Generate without HTTPS\n'

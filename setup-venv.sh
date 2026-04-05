@@ -38,13 +38,19 @@ fi
 
 cat <<'EOF'
 
-Done.
-To use the virtualenv in your shell run:
+ ███████ ███████ ███    ███ ██████
+ ██      ██      ████  ████ ██   ██
+ ███████ ███████ ██ ████ ██ ██   ██
+      ██      ██ ██  ██  ██ ██   ██
+ ███████ ███████ ██      ██ ██████
+ Spawn · Scope · Migrate · Destroy
+
+Setup complete. Activate the venv:
   source .venv/bin/activate
 
-You can run the generator as:
-  python3 generate-config.py example.com --dry-run
-or:
-  ./generate-config.py example.com
+Then run:
+  ./ssmd <domain>                     Generate base configs
+  ./ssmd instance create --name ...   Create an instance
+  ./ssmd instance list                List instances
 
 EOF

@@ -1,6 +1,17 @@
-# Dev Environment — Dynamic Multi-App Docker Setup
+# ssmd — Spawn, Scope, Migrate, Destroy
 
-Docker-based developer environment with dynamic instance management. Run multiple app versions and branches simultaneously, each with its own subdomain, database, and container.
+```
+ ███████ ███████ ███    ███ ██████
+ ██      ██      ████  ████ ██   ██
+ ███████ ███████ ██ ████ ██ ██   ██
+      ██      ██ ██  ██  ██ ██   ██
+ ███████ ███████ ██      ██ ██████
+ Spawn · Scope · Migrate · Destroy
+```
+
+Dynamic isolated dev instance manager. Run multiple app versions and branches simultaneously, each with its own Docker container, PostgreSQL database, Redis prefix, subdomain, and optionally a git worktree for branch isolation.
+
+> **Legacy alias**: `./generate-config.py` still works and is equivalent to `./ssmd`.
 
 ## Architecture
 
@@ -37,7 +48,7 @@ Docker-based developer environment with dynamic instance management. Run multipl
 source .venv/bin/activate
 
 # 2. Generate configs for your domain
-./generate-config.py user196.online
+./ssmd user196.online
 
 # 3. Generate SSL certificates
 ./generate-certs.sh
@@ -49,8 +60,8 @@ source .venv/bin/activate
 docker compose up -d
 
 # 6. Create your first instances
-./generate-config.py instance create --name v4-main --type v4 --subdomain v4
-./generate-config.py instance create --name sh-main --type selfhosted --subdomain selfhosted
+./ssmd instance create --name v4-main --type v4 --subdomain v4
+./ssmd instance create --name sh-main --type selfhosted --subdomain selfhosted
 
 # 7. Access via VNC browser
 # Open http://localhost:3000 in your browser
@@ -62,37 +73,37 @@ docker compose up -d
 
 ```bash
 # V4 instance on default source (apps/orangescrum-v4)
-./generate-config.py instance create --name v4-main --type v4 --subdomain v4
+./ssmd instance create --name v4-main --type v4 --subdomain v4
 
 # Selfhosted instance
-./generate-config.py instance create --name sh-main --type selfhosted --subdomain selfhosted
+./ssmd instance create --name sh-main --type selfhosted --subdomain selfhosted
 
 # Instance on a specific branch (creates a git worktree)
-./generate-config.py instance create --name v4-kanban --type v4 \
+./ssmd instance create --name v4-kanban --type v4 \
   --subdomain kanban --branch enhance/kanban-ui
 
 # Instance from a custom source path
-./generate-config.py instance create --name v4-custom --type v4 \
+./ssmd instance create --name v4-custom --type v4 \
   --subdomain custom --source ./apps/my-fork
 
 # Instance with a pre-populated database (from a snapshot)
-./generate-config.py instance create --name v4-demo --type v4 \
+./ssmd instance create --name v4-demo --type v4 \
   --subdomain demo --from-snapshot snapshots/v4_main_20260404.sql.gz
 ```
 
 ### Lifecycle
 
 ```bash
-./generate-config.py instance list                        # List all instances
-./generate-config.py instance stop --name v4-kanban       # Stop
-./generate-config.py instance start --name v4-kanban      # Start
-./generate-config.py instance destroy --name v4-kanban --drop-db  # Destroy + drop DB
-./generate-config.py instance db-setup --name v4-main     # Run migrations & seeds
-./generate-config.py instance db-snapshot --name v4-main  # Snapshot database to snapshots/
-./generate-config.py instance db-restore --name v4-new \
+./ssmd instance list                        # List all instances
+./ssmd instance stop --name v4-kanban       # Stop
+./ssmd instance start --name v4-kanban      # Start
+./ssmd instance destroy --name v4-kanban --drop-db  # Destroy + drop DB
+./ssmd instance db-setup --name v4-main     # Run migrations & seeds
+./ssmd instance db-snapshot --name v4-main  # Snapshot database to snapshots/
+./ssmd instance db-restore --name v4-new \
   --snapshot snapshots/v4_main_20260404.sql.gz             # Restore snapshot
-./generate-config.py instance logs --name v4-main -f      # Stream logs
-./generate-config.py instance shell --name v4-main        # Shell into container
+./ssmd instance logs --name v4-main -f      # Stream logs
+./ssmd instance shell --name v4-main        # Shell into container
 ```
 
 ### Web Controller
@@ -130,14 +141,14 @@ Run multiple branches simultaneously, each with its own isolated environment:
 
 ```bash
 # Main branch — shared codebase
-./generate-config.py instance create --name v4-main --type v4 --subdomain v4
+./ssmd instance create --name v4-main --type v4 --subdomain v4
 
 # Feature branch — own worktree, DB, subdomain
-./generate-config.py instance create --name v4-kanban --type v4 \
+./ssmd instance create --name v4-kanban --type v4 \
   --subdomain kanban --branch enhance/kanban-ui
 
 # Bugfix branch
-./generate-config.py instance create --name v4-fix --type v4 \
+./ssmd instance create --name v4-fix --type v4 \
   --subdomain fix --branch fix/issue-456
 
 # Each accessible at its own URL:
@@ -154,17 +165,17 @@ Skip slow migrations+seeds by snapshotting a fully-initialized database and rest
 
 ```bash
 # Set up the first instance from scratch
-./generate-config.py instance db-setup --name v4-main
+./ssmd instance db-setup --name v4-main
 
 # Snapshot its database
-./generate-config.py instance db-snapshot --name v4-main
+./ssmd instance db-snapshot --name v4-main
 
 # Create new instances instantly from the snapshot
-./generate-config.py instance create --name v4-demo --type v4 \
+./ssmd instance create --name v4-demo --type v4 \
   --subdomain demo --from-snapshot snapshots/v4_main_20260404_120000.sql.gz
 
 # Or restore into an existing instance
-./generate-config.py instance db-restore --name v4-demo \
+./ssmd instance db-restore --name v4-demo \
   --snapshot snapshots/v4_main_20260404_120000.sql.gz --drop-existing
 ```
 
@@ -231,7 +242,8 @@ Exact port values are auto-generated per domain (unique offset to avoid conflict
 │   ├── database.py                # db-setup, snapshot, restore
 │   ├── registry.py                # SQLite-backed instance registry
 │   └── output.py                  # Terminal colors and formatting
-├── generate-config.py             # CLI entry point (delegates to lib/)
+├── ssmd                           # CLI entry point (symlink → generate-config.py)
+├── generate-config.py             # CLI implementation (legacy alias)
 └── build-images.sh                # Docker image builder (generated)
 ```
 
@@ -250,13 +262,13 @@ Images are optimized: single apt layers, proper cleanup, no unnecessary packages
 ### Regenerate configs (preserves instances)
 
 ```bash
-./generate-config.py user196.online
+./ssmd user196.online
 ```
 
 ### Full reset (removes everything)
 
 ```bash
-./generate-config.py --reset
+./ssmd --reset
 ```
 
 This stops all instances, removes worktrees, clears the registry, and deletes all generated files.
@@ -266,13 +278,13 @@ This stops all instances, removes worktrees, clears the registry, and deletes al
 HTTPS is enabled by default. Disable with:
 
 ```bash
-./generate-config.py user196.online --no-https
+./ssmd user196.online --no-https
 ```
 
 ### Interactive mode
 
 ```bash
-./generate-config.py user196.online -i
+./ssmd user196.online -i
 ```
 
 Prompts for which services to enable (V2, Redis vs Memcached, MailHog, MinIO).
@@ -284,10 +296,10 @@ Prompts for which services to enable (V2, Redis vs Memcached, MailHog, MinIO).
 docker compose ps
 
 # Check instance container logs
-./generate-config.py instance logs --name v4-main -f
+./ssmd instance logs --name v4-main -f
 
 # Shell into a container
-./generate-config.py instance shell --name v4-main
+./ssmd instance shell --name v4-main
 
 # Rebuild images after Dockerfile changes
 ./build-images.sh all

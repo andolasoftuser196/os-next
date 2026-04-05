@@ -2,8 +2,8 @@
   <div class="app" v-if="authenticated">
     <nav class="sidebar">
       <div class="logo">
-        <h2>Dev</h2>
-        <span class="subtitle">Controller</span>
+        <h2>ssmd</h2>
+        <span class="subtitle">Spawn, Scope, Migrate, Destroy</span>
       </div>
       <router-link to="/" class="nav-item">Dashboard</router-link>
       <router-link to="/instances" class="nav-item">Instances</router-link>
@@ -17,7 +17,7 @@
 
   <div v-else class="login-overlay">
     <div class="login-card">
-      <h2 style="color: #f0883e; margin-bottom: 4px">Dev Controller</h2>
+      <h2 style="color: #f0883e; margin-bottom: 4px">ssmd</h2>
       <p style="color: #8b949e; margin-bottom: 20px; font-size: 14px">Sign in to manage your instances</p>
       <form @submit.prevent="login">
         <input v-model="loginUser" placeholder="Username" autocomplete="username" style="width: 100%; margin-bottom: 10px" />

@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "dev-controller": {
+    "ssmd": {
       "command": ".venv/bin/python",
       "args": ["controller/mcp-server.py"]
     }

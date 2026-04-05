@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MCP Server for OrangeScrum Dev Controller.
+MCP Server for ssmd — Spawn, Scope, Migrate, Destroy.
 Exposes instance management tools for Claude Code.
 
 Auto-discovers config from project .env and registry.
@@ -85,25 +85,25 @@ def _check_restricted(name: str, operation: str) -> str | None:
 # ─── MCP Server ──────────────────────────────────────────────────────────────
 
 mcp = FastMCP(
-    "dev-controller",
-    instructions="Manage OrangeScrum dev instances — create, destroy, start, stop, migrate, snapshot, and monitor containers.",
+    "ssmd",
+    instructions="ssmd — Spawn, Scope, Migrate, Destroy. Manage isolated dev instances — create, destroy, start, stop, migrate, snapshot, and monitor containers.",
 )
 
 
 @mcp.tool()
-def devctl_get_status() -> str:
+def ssmd_get_status() -> str:
     """Get system status: domain, protocol, and health of all base services (Traefik, PostgreSQL, Redis, MySQL, etc.)."""
     return _get("/api/status")
 
 
 @mcp.tool()
-def devctl_list_instances() -> str:
+def ssmd_list_instances() -> str:
     """List all instances with their status, URL, branch, database, and restricted flag. Restricted instances have real API keys and should not be accessed for data operations."""
     return _get("/api/instances")
 
 
 @mcp.tool()
-def devctl_create_instance(
+def ssmd_create_instance(
     name: str,
     type: str,
     subdomain: str = "",
@@ -132,7 +132,7 @@ def devctl_create_instance(
 
 
 @mcp.tool()
-def devctl_destroy_instance(name: str, drop_db: bool = False) -> str:
+def ssmd_destroy_instance(name: str, drop_db: bool = False) -> str:
     """Destroy an instance — removes container, config, and optionally its database.
 
     Args:
@@ -143,7 +143,7 @@ def devctl_destroy_instance(name: str, drop_db: bool = False) -> str:
 
 
 @mcp.tool()
-def devctl_start_instance(name: str) -> str:
+def ssmd_start_instance(name: str) -> str:
     """Start a stopped instance.
 
     Args:
@@ -153,7 +153,7 @@ def devctl_start_instance(name: str) -> str:
 
 
 @mcp.tool()
-def devctl_stop_instance(name: str) -> str:
+def ssmd_stop_instance(name: str) -> str:
     """Stop a running instance.
 
     Args:
@@ -163,7 +163,7 @@ def devctl_stop_instance(name: str) -> str:
 
 
 @mcp.tool()
-def devctl_db_setup(name: str, skip_seed: bool = False) -> str:
+def ssmd_db_setup(name: str, skip_seed: bool = False) -> str:
     """Run CakePHP database migrations and seeds for an instance. Blocked for restricted instances.
 
     Args:
@@ -177,7 +177,7 @@ def devctl_db_setup(name: str, skip_seed: bool = False) -> str:
 
 
 @mcp.tool()
-def devctl_db_snapshot(name: str) -> str:
+def ssmd_db_snapshot(name: str) -> str:
     """Create a pg_dump snapshot of an instance's database. Saved to snapshots/ as .sql.gz. Blocked for restricted instances.
 
     Args:
@@ -190,7 +190,7 @@ def devctl_db_snapshot(name: str) -> str:
 
 
 @mcp.tool()
-def devctl_db_restore(name: str, snapshot: str) -> str:
+def ssmd_db_restore(name: str, snapshot: str) -> str:
     """Restore a database snapshot into an instance. Blocked for restricted instances.
 
     Args:
@@ -204,13 +204,13 @@ def devctl_db_restore(name: str, snapshot: str) -> str:
 
 
 @mcp.tool()
-def devctl_list_snapshots() -> str:
+def ssmd_list_snapshots() -> str:
     """List all available database snapshots with name, path, size, and creation date."""
     return _get("/api/snapshots")
 
 
 @mcp.tool()
-def devctl_instance_logs(name: str, tail: int = 100) -> str:
+def ssmd_instance_logs(name: str, tail: int = 100) -> str:
     """Get the last N lines of an instance's container logs. Blocked for restricted instances.
 
     Args:

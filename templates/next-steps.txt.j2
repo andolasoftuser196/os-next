@@ -4,24 +4,24 @@ Next steps:
   2. Generate SSL certificates: ./generate-certs.sh
   3. Start base services: docker compose up -d
   4. Create instances:
-     ./generate-config.py instance create --name v4-main --type v4 --subdomain v4
-     ./generate-config.py instance create --name sh-main --type selfhosted --subdomain selfhosted
+     ./ssmd instance create --name v4-main --type v4 --subdomain v4
+     ./ssmd instance create --name sh-main --type selfhosted --subdomain selfhosted
   5. Run database setup:
 {% if services.orangescrum %}
      V2 DB: docker compose exec mysql mysql -uroot -prootpassword orangescrum < os-v2/your-dump.sql
 {% endif %}
-     ./generate-config.py instance db-setup --name v4-main
-     ./generate-config.py instance db-setup --name sh-main
+     ./ssmd instance db-setup --name v4-main
+     ./ssmd instance db-setup --name sh-main
 
 Instance Management:
-  Create:   ./generate-config.py instance create --name <name> --type <v4|selfhosted> --subdomain <sub>
-  List:     ./generate-config.py instance list
-  Stop:     ./generate-config.py instance stop --name <name>
-  Start:    ./generate-config.py instance start --name <name>
-  Destroy:  ./generate-config.py instance destroy --name <name> --drop-db
-  DB Setup: ./generate-config.py instance db-setup --name <name>
-  Logs:     ./generate-config.py instance logs --name <name> -f
-  Shell:    ./generate-config.py instance shell --name <name>
+  Create:   ./ssmd instance create --name <name> --type <v4|selfhosted> --subdomain <sub>
+  List:     ./ssmd instance list
+  Stop:     ./ssmd instance stop --name <name>
+  Start:    ./ssmd instance start --name <name>
+  Destroy:  ./ssmd instance destroy --name <name> --drop-db
+  DB Setup: ./ssmd instance db-setup --name <name>
+  Logs:     ./ssmd instance logs --name <name> -f
+  Shell:    ./ssmd instance shell --name <name>
 
 Access via VNC Browser:
   Open: http://localhost:3000

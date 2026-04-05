@@ -1,5 +1,5 @@
 """
-Dev Controller — FastAPI Backend
+ssmd Controller — FastAPI Backend
 Manages dynamic V4/selfhosted instances, container status, logs, and web terminal.
 """
 
@@ -14,9 +14,9 @@ from fastapi.staticfiles import StaticFiles
 from .routes import instances, database, monitoring, websockets
 
 app = FastAPI(
-    title="Dev Controller",
+    title="ssmd",
     version="1.0.0",
-    description="Manages dynamic OrangeScrum V4/selfhosted instances — containers, databases, routing, and git worktrees.",
+    description="ssmd — Spawn, Scope, Migrate, Destroy. Manages dynamic isolated instances — containers, databases, routing, and git worktrees.",
 )
 
 # ─── CORS — restrict to same origin ─────────────────────────────────────────

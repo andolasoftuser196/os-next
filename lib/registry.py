@@ -215,7 +215,7 @@ def get_project_context():
     reg = load_registry()
     domain = reg.get('domain') or detect_current_domain()
     if not domain:
-        print_colored("Error: No domain configured. Run './generate-config.py <domain>' first.", Colors.RED)
+        print_colored("Error: No domain configured. Run './ssmd <domain>' first.", Colors.RED)
         sys.exit(1)
 
     env_file = Path('.env')
